@@ -11,3 +11,4 @@ Project guardrails:
 - When editing UI behavior, preserve the 1°C hysteresis and humidity lockout logic descriptions.
 - Keep README and user-facing text consistent with current system behavior (no promises of unimplemented features).
 - Do not add credentials, secrets, or device-specific tokens to examples.
+- Create commit messages that are clear, concise, and follow conventional commit standards.
