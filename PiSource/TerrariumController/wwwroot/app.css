@@ -1,0 +1,34 @@
+html, body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background-color: #0b1018;
+    color: #e7edf7;
+    min-height: 100%;
+}
+
+a, .btn-link {
+    color: #7bd7ff;
+}
+
+.btn-primary {
+    color: #0b1018;
+    background-color: #7bd7ff;
+    border-color: #58c2f0;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.15rem rgba(123, 215, 255, 0.35);
+}
+
+.content {
+    padding-top: 0;
+}
+
+.blazor-error-boundary {
+    background: #3b1b1b;
+    padding: 1rem;
+    color: #f6dede;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
+}

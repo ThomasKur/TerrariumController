@@ -1,0 +1,19 @@
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : warning NU1603: TerrariumController depends on Iot.Device.Bindings (>= 3.3.32) but Iot.Device.Bindings 3.3.32 was not found. Iot.Device.Bindings 4.0.1 was resolved instead.
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : warning NU1603: TerrariumController depends on System.Device.Gpio (>= 2.2.655) but System.Device.Gpio 2.2.655 was not found. System.Device.Gpio 3.0.0 was resolved instead.
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1101: Unable to find package Iot.Device.DHTxx. No packages exist with this id in source(s): Microsoft Visual Studio Offline Packages, nuget.org
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605: Warning As Error: Detected package downgrade: System.Device.Gpio from 4.0.1 to 3.0.0. Reference the package directly from the project to select a different version. 
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605:  TerrariumController -> Iot.Device.Bindings 4.0.1 -> System.Device.Gpio (>= 4.0.1) 
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605:  TerrariumController -> System.Device.Gpio (>= 2.2.655)
+
+Build FAILED.
+
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : warning NU1603: TerrariumController depends on Iot.Device.Bindings (>= 3.3.32) but Iot.Device.Bindings 3.3.32 was not found. Iot.Device.Bindings 4.0.1 was resolved instead.
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : warning NU1603: TerrariumController depends on System.Device.Gpio (>= 2.2.655) but System.Device.Gpio 2.2.655 was not found. System.Device.Gpio 3.0.0 was resolved instead.
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1101: Unable to find package Iot.Device.DHTxx. No packages exist with this id in source(s): Microsoft Visual Studio Offline Packages, nuget.org
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605: Warning As Error: Detected package downgrade: System.Device.Gpio from 4.0.1 to 3.0.0. Reference the package directly from the project to select a different version. 
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605:  TerrariumController -> Iot.Device.Bindings 4.0.1 -> System.Device.Gpio (>= 4.0.1) 
+C:\Repos\TerrariumController\PiSource\TerrariumController\TerrariumController.csproj : error NU1605:  TerrariumController -> System.Device.Gpio (>= 2.2.655)
+    2 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:00.77

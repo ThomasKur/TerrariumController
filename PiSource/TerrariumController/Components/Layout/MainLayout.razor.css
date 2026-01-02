@@ -1,0 +1,45 @@
+body {
+    background: radial-gradient(120% 120% at 20% 20%, #1f2738 0%, #0e141f 55%, #060a0f 100%);
+    color: #e7edf7;
+}
+
+.layout-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    padding: 32px;
+    background: linear-gradient(145deg, rgba(10, 15, 24, 0.6), rgba(20, 26, 39, 0.8));
+    backdrop-filter: blur(4px);
+}
+
+.content-surface {
+    width: min(1200px, 100%);
+    margin: auto;
+    background: rgba(16, 22, 33, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    padding: 28px 30px;
+}
+
+#blazor-error-ui {
+    color-scheme: dark only;
+    background: #2b1a1a;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        position: absolute;
+        right: 0.75rem;
+        top: 0.5rem;
+    }

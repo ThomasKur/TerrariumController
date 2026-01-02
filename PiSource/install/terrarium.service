@@ -1,0 +1,20 @@
+[Unit]
+Description=Terrarium Controller Service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=10
+User=terrarium
+WorkingDirectory=/opt/terrarium
+ExecStart=/usr/bin/dotnet /opt/terrarium/TerrariumController.dll
+StandardOutput=journal
+StandardError=journal
+
+# Supervise mjpg-streamer if needed
+# ExecStartPost=/bin/sh -c 'mjpg_streamer -i "input_raspicam.so -fps 15 -w 1280 -h 720" -o "output_http.so -p 8080" &'
+
+[Install]
+WantedBy=multi-user.target

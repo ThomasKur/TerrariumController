@@ -1,0 +1,52 @@
+name: Build and Package
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-zip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore PiSource/TerrariumController.sln
+
+      - name: Build
+        run: dotnet build PiSource/TerrariumController.sln --configuration Release --no-restore
+
+      - name: Publish app
+        run: dotnet publish PiSource/TerrariumController/TerrariumController.csproj --configuration Release --output publish
+
+      - name: Prepare package
+        run: |
+          mkdir -p package/app
+          cp -R publish/* package/app/
+          cp PiSource/install/setup.sh package/
+          cp PiSource/install/terrarium.service package/
+          cp PiSource/install/kiosk.sh package/
+          cp README.md package/README.md
+          chmod +x package/setup.sh package/kiosk.sh
+
+      - name: Create zip
+        run: |
+          cd package
+          zip -r terrarium-controller.zip .
+          mv terrarium-controller.zip ../
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrarium-controller
+          path: terrarium-controller.zip

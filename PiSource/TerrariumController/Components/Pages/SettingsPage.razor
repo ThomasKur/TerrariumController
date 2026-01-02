@@ -1,0 +1,364 @@
+@page "/settings"
+@using TerrariumController.Services
+@using TerrariumController.Models
+@rendermode InteractiveServer
+@inject ISettingsService SettingsService
+@inject NavigationManager NavigationManager
+@inject ILogger<SettingsPage> Logger
+
+<PageTitle>Settings - Terrarium Controller</PageTitle>
+
+<div class="settings-container">
+    <h1>Settings</h1>
+
+    @if (CurrentSettings == null)
+    {
+        <p>Loading settings...</p>
+    }
+    else
+    {
+        <div class="settings-form">
+            <!-- Temperature Thresholds -->
+            <section class="settings-section">
+                <h2>Temperature Thresholds</h2>
+                <div class="setting-group">
+                    <label>
+                        Relay 1 Threshold:
+                        <input type="number" min="15" max="35" step="0.1" @bind="CurrentSettings.Threshold1Temperature" />
+                        <span class="value">@CurrentSettings.Threshold1Temperature.ToString("F1")°C</span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        Relay 2 Threshold:
+                        <input type="number" min="15" max="35" step="0.1" @bind="CurrentSettings.Threshold2Temperature" />
+                        <span class="value">@CurrentSettings.Threshold2Temperature.ToString("F1")°C</span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        Relay 3 Threshold:
+                        <input type="number" min="15" max="35" step="0.1" @bind="CurrentSettings.Threshold3Temperature" />
+                        <span class="value">@CurrentSettings.Threshold3Temperature.ToString("F1")°C</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Humidity Settings -->
+            <section class="settings-section">
+                <h2>Humidity Control</h2>
+                <div class="setting-group">
+                    <label>
+                        Sensor 1 Humidity Threshold:
+                        <input type="number" min="20" max="100" step="1" @bind="CurrentSettings.Sensor1HumidityThreshold" />
+                        <span class="value">@CurrentSettings.Sensor1HumidityThreshold.ToString("F0")%</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Daylight Schedule (Relay 4) -->
+            <section class="settings-section">
+                <h2>Daylight Schedule (Relay 4)</h2>
+                <div class="setting-group">
+                    <label>
+                        On Time:
+                        <input type="text" placeholder="HH:mm" @bind="CurrentSettings.Relay4OnTime" />
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        Off Time:
+                        <input type="text" placeholder="HH:mm" @bind="CurrentSettings.Relay4OffTime" />
+                    </label>
+                </div>
+            </section>
+
+            <!-- Camera Settings -->
+            <section class="settings-section">
+                <h2>Camera Settings</h2>
+                <div class="setting-group">
+                    <label>
+                        Width:
+                        <input type="number" min="320" max="3840" step="1" @bind="CurrentSettings.CameraWidth" />
+                        <span class="value">@CurrentSettings.CameraWidth px</span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        Height:
+                        <input type="number" min="240" max="2160" step="1" @bind="CurrentSettings.CameraHeight" />
+                        <span class="value">@CurrentSettings.CameraHeight px</span>
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label>
+                        Framerate:
+                        <input type="number" min="1" max="60" step="1" @bind="CurrentSettings.CameraFramerate" />
+                        <span class="value">@CurrentSettings.CameraFramerate fps</span>
+                    </label>
+                </div>
+            </section>
+
+            <!-- Log Retention -->
+            <section class="settings-section">
+                <h2>Log Retention</h2>
+                <div class="setting-group">
+                    <label>
+                        Retention Period:
+                        <input type="number" min="1" max="24" step="1" @bind="CurrentSettings.LogRetentionMonths" />
+                        <span class="value">@CurrentSettings.LogRetentionMonths months</span>
+                    </label>
+                </div>
+                <div class="info-text">Next pruning will occur daily at midnight (UTC)</div>
+            </section>
+
+            <!-- Sensor GPIO Configuration -->
+            <section class="settings-section">
+                <h2>Sensor GPIO (BCM)</h2>
+                <div class="gpio-grid">
+                    <div class="setting-group">
+                        <label>
+                            Sensor 1 GPIO:
+                            <input type="number" @bind="CurrentSettings.Sensor1GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Sensor 2 GPIO:
+                            <input type="number" @bind="CurrentSettings.Sensor2GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Sensor 3 GPIO:
+                            <input type="number" @bind="CurrentSettings.Sensor3GPIO" />
+                        </label>
+                    </div>
+                </div>
+                <div class="info-text">Use BCM numbering for sensor inputs.</div>
+            </section>
+
+            <!-- Relay GPIO Configuration -->
+            <section class="settings-section">
+                <h2>Relay GPIO (BOARD)</h2>
+                <div class="gpio-grid">
+                    <div class="setting-group">
+                        <label>
+                            Relay 1 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay1GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Relay 2 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay2GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Relay 3 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay3GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Relay 4 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay4GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Relay 5 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay5GPIO" />
+                        </label>
+                    </div>
+                    <div class="setting-group">
+                        <label>
+                            Relay 6 GPIO:
+                            <input type="number" @bind="CurrentSettings.Relay6GPIO" />
+                        </label>
+                    </div>
+                </div>
+                <div class="info-text">Use BOARD numbering for relay outputs.</div>
+            </section>
+
+            <!-- Database Management -->
+            <section class="settings-section">
+                <h2>Database Management</h2>
+                <div class="info-text">
+                    Database Size: @(DbSize > 0 ? $"{DbSize / 1024.0:F2} KB" : "Calculating...")
+                </div>
+                <button @onclick="CompactDatabase" class="btn-compact">Compact Database</button>
+            </section>
+
+            <!-- Action Buttons -->
+            <div class="button-group">
+                <button @onclick="SaveSettings" class="btn-save">Save Settings</button>
+                <button @onclick="Cancel" class="btn-cancel">Cancel</button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .settings-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    .settings-section {
+        background: white;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .settings-section h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+        color: #333;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 0.5rem;
+    }
+
+    .setting-group {
+        margin-bottom: 1rem;
+    }
+
+    .setting-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .setting-group input {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-right: 1rem;
+        width: 120px;
+    }
+
+    .setting-group .value {
+        font-weight: bold;
+        color: #007bff;
+        min-width: 80px;
+        display: inline-block;
+    }
+
+    .gpio-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .info-text {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+
+    .button-group {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .btn-save, .btn-compact, .btn-cancel {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s;
+    }
+
+    .btn-save {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .btn-save:hover {
+        background-color: #218838;
+    }
+
+    .btn-compact {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    .btn-compact:hover {
+        background-color: #138496;
+    }
+
+    .btn-cancel {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    .btn-cancel:hover {
+        background-color: #5a6268;
+    }
+</style>
+
+@code {
+    private Models.Settings CurrentSettings = null!;
+    private long DbSize = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            CurrentSettings = await SettingsService.GetSettingsAsync();
+            await RefreshDatabaseSize();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading settings");
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        try
+        {
+            await SettingsService.UpdateSettingsAsync(CurrentSettings);
+            Logger.LogInformation("Settings saved successfully");
+            NavigationManager.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving settings");
+        }
+    }
+
+    private async Task RefreshDatabaseSize()
+    {
+        DbSize = await SettingsService.GetDatabaseSizeAsync();
+    }
+
+    private async Task CompactDatabase()
+    {
+        try
+        {
+            await SettingsService.CompactDatabaseAsync();
+            await RefreshDatabaseSize();
+            Logger.LogInformation("Database compacted successfully");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error compacting database");
+        }
+    }
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}

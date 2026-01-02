@@ -1,0 +1,313 @@
+@page "/logs"
+@using TerrariumController.Services
+@using TerrariumController.Models
+@rendermode InteractiveServer
+@inject ILoggingService LoggingService
+@inject NavigationManager NavigationManager
+@inject ILogger<LogHistoryPage> Logger
+
+<PageTitle>Log History - Terrarium Controller</PageTitle>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>Log History</h1>
+        <button @onclick="GoBack" class="btn-back">← Back to Dashboard</button>
+    </div>
+
+    @if (LogEntries == null)
+    {
+        <p>Loading log entries...</p>
+    }
+    else
+    {
+        <div class="log-controls">
+            <label>
+                Filter by Type:
+                <select @onchange="OnFilterChanged">
+                    <option value="">All Types</option>
+                    <option value="StateChange">State Changes</option>
+                    <option value="HourlySnapshot">Hourly Snapshots</option>
+                </select>
+            </label>
+
+            <label>
+                Page Size:
+                <select @onchange="OnPageSizeChanged">
+                    <option value="10">10 per page</option>
+                    <option value="25">25 per page</option>
+                    <option value="50">50 per page</option>
+                </select>
+            </label>
+        </div>
+
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Type</th>
+                    <th>Details</th>
+                    <th>Temp 1</th>
+                    <th>RH 1</th>
+                    <th>Temp 2</th>
+                    <th>RH 2</th>
+                    <th>Temp 3</th>
+                    <th>RH 3</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in LogEntries)
+                {
+                    <tr class="@(log.LogType == "StateChange" ? "state-change" : "snapshot")">
+                        <td class="timestamp">@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td class="type">@log.LogType</td>
+                        <td class="details">@log.Details</td>
+                        <td>@(log.Sensor1Temperature?.ToString("F1") ?? "-")</td>
+                        <td>@(log.Sensor1Humidity?.ToString("F0") ?? "-")%</td>
+                        <td>@(log.Sensor2Temperature?.ToString("F1") ?? "-")</td>
+                        <td>@(log.Sensor2Humidity?.ToString("F0") ?? "-")%</td>
+                        <td>@(log.Sensor3Temperature?.ToString("F1") ?? "-")</td>
+                        <td>@(log.Sensor3Humidity?.ToString("F0") ?? "-")%</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <button @onclick="PreviousPage" disabled="@(CurrentPage <= 1)" class="btn-paging">← Previous</button>
+            <span class="page-info">Page @CurrentPage of @TotalPages (@TotalCount total entries)</span>
+            <button @onclick="NextPage" disabled="@(CurrentPage >= TotalPages)" class="btn-paging">Next →</button>
+        </div>
+    }
+</div>
+
+<style>
+    .log-container {
+        max-width: 1200px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    .log-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .log-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        color: #333;
+    }
+
+    .btn-back {
+        padding: 0.75rem 1.5rem;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: background-color 0.3s;
+    }
+
+    .btn-back:hover {
+        background-color: #0056b3;
+    }
+
+    .log-controls {
+        background: white;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        display: flex;
+        gap: 2rem;
+    }
+
+    .log-controls label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+    }
+
+    .log-controls select {
+        padding: 0.5rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    .log-table {
+        width: 100%;
+        background: white;
+        border-collapse: collapse;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .log-table thead {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .log-table th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid #ddd;
+    }
+
+    .log-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #eee;
+        font-size: 0.9rem;
+    }
+
+    .log-table tbody tr:hover {
+        background-color: #f9f9f9;
+    }
+
+    .log-table tr.state-change {
+        border-left: 4px solid #ff9800;
+    }
+
+    .log-table tr.snapshot {
+        border-left: 4px solid #2196f3;
+    }
+
+    .timestamp {
+        font-weight: 500;
+        color: #666;
+    }
+
+    .type {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .details {
+        color: #555;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 6px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .btn-paging {
+        padding: 0.5rem 1rem;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    .btn-paging:hover:not(:disabled) {
+        background-color: #0056b3;
+    }
+
+    .btn-paging:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+
+    .page-info {
+        font-weight: 500;
+        color: #666;
+        min-width: 250px;
+        text-align: center;
+    }
+</style>
+
+@code {
+    private List<LogEntry> LogEntries = null!;
+    private string SelectedType = "";
+    private int PageSize = 25;
+    private int CurrentPage = 1;
+    private int TotalPages = 1;
+    private int TotalCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await LoadLogs();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading log entries");
+        }
+    }
+
+    private async Task LoadLogs()
+    {
+        TotalCount = await LoggingService.GetLogCountAsync();
+        TotalPages = (int)Math.Ceiling((double)TotalCount / PageSize);
+        
+        LogEntries = await LoggingService.GetLogEntriesAsync(CurrentPage, PageSize);
+
+        // Filter by type if selected
+        if (!string.IsNullOrEmpty(SelectedType))
+        {
+            LogEntries = LogEntries.Where(le => le.LogType == SelectedType).ToList();
+        }
+    }
+
+    private async Task OnFilterChanged(ChangeEventArgs e)
+    {
+        SelectedType = e.Value?.ToString() ?? "";
+        CurrentPage = 1;
+        await LoadLogs();
+    }
+
+    private async Task OnPageSizeChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int newSize))
+        {
+            PageSize = newSize;
+            CurrentPage = 1;
+            await LoadLogs();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (CurrentPage < TotalPages)
+        {
+            CurrentPage++;
+            await LoadLogs();
+        }
+    }
+
+    private async Task PreviousPage()
+    {
+        if (CurrentPage > 1)
+        {
+            CurrentPage--;
+            await LoadLogs();
+        }
+    }
+
+    private void GoBack()
+    {
+        NavigationManager.NavigateTo("/");
+    }
+}
