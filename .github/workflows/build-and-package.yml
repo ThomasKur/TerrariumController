@@ -21,10 +21,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore PiSource/TerrariumController.sln
+        run: dotnet restore PiSource/PiSource.sln
 
       - name: Build
-        run: dotnet build PiSource/TerrariumController.sln --configuration Release --no-restore
+        run: dotnet build PiSource/PiSource.sln --configuration Release --no-restore
 
       - name: Publish app
         run: dotnet publish PiSource/TerrariumController/TerrariumController.csproj --configuration Release --output publish
