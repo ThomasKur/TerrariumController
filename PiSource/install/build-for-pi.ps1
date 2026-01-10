@@ -4,9 +4,12 @@
 
 param(
     [ValidateSet('framework-dependent', 'self-contained', 'both')]
-    [string]$BuildType = 'framework-dependent',
+    [string]$BuildType = 'self-contained',
     
-    [switch]$NoClean
+    [switch]$NoClean,
+    
+    # Optional: produce a single-file binary (larger artifact)
+    [switch]$SingleFile
 )
 
 $ErrorActionPreference = "Stop"
@@ -61,10 +64,12 @@ function Build-App {
         $publishArgs += @(
             '-r', 'linux-arm64',
             '--self-contained', 'true',
-            '-p:PublishSingleFile=true',
             '-p:DebugType=None',
             '-p:DebugSymbols=false'
         )
+        if ($SingleFile) {
+            $publishArgs += @('-p:PublishSingleFile=true')
+        }
     } else {
         $publishArgs += @(
             '-r', 'linux-arm64',

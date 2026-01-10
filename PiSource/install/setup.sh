@@ -44,66 +44,9 @@ echo "Updating system packages..."
 apt update
 apt upgrade -y
 
-# Install .NET ASP.NET Core Runtime (runtime only; app is pre-built)
-echo "Installing .NET ASP.NET Core Runtime..."
-
-# Check if dotnet is already installed
-DOTNET_INSTALLED=false
-if command -v dotnet >/dev/null 2>&1 || [ -x "/usr/local/dotnet/dotnet" ]; then
-    DOTNET_CMD=""
-    if [ -x "/usr/local/dotnet/dotnet" ]; then
-        DOTNET_CMD="/usr/local/dotnet/dotnet"
-    else
-        DOTNET_CMD="dotnet"
-    fi
-    
-    # Check if ASP.NET Core runtime 10.0 is installed
-    if $DOTNET_CMD --list-runtimes 2>/dev/null | grep -q "Microsoft.AspNetCore.App 10\."; then
-        echo -e "${GREEN}.NET ASP.NET Core Runtime 10.0 already installed, skipping...${NC}"
-        DOTNET_INSTALLED=true
-    else
-        echo "dotnet found but ASP.NET Core 10.0 runtime not detected, will install..."
-    fi
-fi
-
-# Detect architecture for the installer (prefer 64-bit on Raspberry Pi OS)
-UNAME_ARCH="$(uname -m)"
-DOTNET_ARCH="arm64"
-if [ "$UNAME_ARCH" = "aarch64" ]; then
-    DOTNET_ARCH="arm64"
-elif [ "$UNAME_ARCH" = "armv7l" ]; then
-    # Fall back to arm if running 32-bit OS (not recommended for ASP.NET Core)
-    DOTNET_ARCH="arm"
-fi
-
-if [ "$DOTNET_INSTALLED" = false ]; then
-for attempt in 1 2 3; do
-    echo "Attempt $attempt: Downloading .NET installer..."
-    if curl -fSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh --max-time 60 --retry 3; then
-        chmod +x dotnet-install.sh
-        # Install ASP.NET Core runtime only to reduce memory footprint
-        if ./dotnet-install.sh \
-            --runtime aspnetcore \
-            --channel 10.0 \
-            --install-dir /usr/local/dotnet \
-            --architecture "$DOTNET_ARCH"; then
-            DOTNET_INSTALLED=true
-            break
-        fi
-    fi
-    echo "Attempt $attempt failed, retrying..."
-    sleep 5
-done
-
-    if [ "$DOTNET_INSTALLED" = false ]; then
-        echo -e "${YELLOW}Warning: .NET installation had issues, trying apt package (runtime only)...${NC}"
-        # Prefer ASP.NET Core runtime package; fall back to generic runtime if needed
-        apt install -y aspnetcore-runtime-10.0 || apt install -y dotnet-runtime-10.0 || true
-    fi
-fi
-
-export PATH=$PATH:/usr/local/dotnet:/root/.dotnet/tools
-rm -f dotnet-install.sh
+# .NET runtime installation removed — default deployment uses self-contained binaries.
+# If you choose framework-dependent deployment, ensure the ASP.NET Core runtime 10.x
+# is installed manually (apt install aspnetcore-runtime-10.0) before starting the service.
 
 # Create user and directory for the app
 echo "Creating terrarium user and directories..."
@@ -117,21 +60,12 @@ cat > /opt/terrarium/run.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Prefer self-contained binary if present
+# Require self-contained binary
 if [ -x "/opt/terrarium/TerrariumController" ]; then
     exec /opt/terrarium/TerrariumController
-elif [ -f "/opt/terrarium/TerrariumController.dll" ]; then
-    # Try local dotnet install dir first, then system dotnet
-    if [ -x "/usr/local/dotnet/dotnet" ]; then
-        exec /usr/local/dotnet/dotnet /opt/terrarium/TerrariumController.dll
-    elif command -v dotnet >/dev/null 2>&1; then
-        exec dotnet /opt/terrarium/TerrariumController.dll
-    else
-        echo "dotnet runtime not found; install ASP.NET Core runtime or deploy self-contained binary" >&2
-        exit 1
-    fi
 else
-    echo "Terrarium app not found in /opt/terrarium (expected TerrariumController or TerrariumController.dll)" >&2
+    echo "Self-contained binary not found at /opt/terrarium/TerrariumController" >&2
+    echo "Rebuild with self-contained publish (linux-arm64) and rerun setup." >&2
     exit 1
 fi
 EOF
@@ -289,8 +223,8 @@ else
     echo -e "${YELLOW}  sudo chmod +x /opt/terrarium/run.sh${NC}"
 fi
 
-# Verify app deployment (binary or DLL)
-if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/TerrariumController.dll" ]; then
+# Verify app deployment (self-contained binary)
+if [ -x "/opt/terrarium/TerrariumController" ]; then
     echo -e "${GREEN}App deployed successfully${NC}"
     
     # Start the service automatically
@@ -336,8 +270,8 @@ if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/Terrarium
         echo -e "${RED}Service failed - see logs above${NC}"
     fi
 else
-    echo -e "${YELLOW}Note: App not yet deployed to /opt/terrarium${NC}"
-    echo -e "${YELLOW}Build and deploy the app before starting the service${NC}"
+    echo -e "${YELLOW}Note: Self-contained app not yet deployed to /opt/terrarium${NC}"
+    echo -e "${YELLOW}Build and deploy the self-contained app before starting the service${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "YCLt3OG3988=",
+  "dgSpecHash": "QK2qJqdLZ4w=",
   "success": true,
   "projectFilePath": "C:\\Repos\\TerrariumController\\PiSource\\TerrariumController\\TerrariumController.csproj",
   "expectedPackageFiles": [
@@ -49,6 +49,8 @@
     "C:\\Users\\ThomasKurth\\.nuget\\packages\\system.security.cryptography.protecteddata\\9.0.0\\system.security.cryptography.protecteddata.9.0.0.nupkg.sha512",
     "C:\\Users\\ThomasKurth\\.nuget\\packages\\system.security.permissions\\9.0.0\\system.security.permissions.9.0.0.nupkg.sha512",
     "C:\\Users\\ThomasKurth\\.nuget\\packages\\system.windows.extensions\\9.0.0\\system.windows.extensions.9.0.0.nupkg.sha512",
+    "C:\\Users\\ThomasKurth\\.nuget\\packages\\microsoft.netcore.app.runtime.linux-arm64\\10.0.1\\microsoft.netcore.app.runtime.linux-arm64.10.0.1.nupkg.sha512",
+    "C:\\Users\\ThomasKurth\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.linux-arm64\\10.0.1\\microsoft.aspnetcore.app.runtime.linux-arm64.10.0.1.nupkg.sha512",
     "C:\\Users\\ThomasKurth\\.nuget\\packages\\microsoft.netcore.app.host.linux-arm64\\10.0.1\\microsoft.netcore.app.host.linux-arm64.10.0.1.nupkg.sha512"
   ],
   "logs": []
