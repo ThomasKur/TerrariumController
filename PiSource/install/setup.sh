@@ -44,14 +44,30 @@ echo "Updating system packages..."
 apt update
 apt upgrade -y
 
-# Install .NET Runtime (only, since app is pre-built)
-echo "Installing .NET Runtime..."
+# Install .NET ASP.NET Core Runtime (runtime only; app is pre-built)
+echo "Installing .NET ASP.NET Core Runtime..."
+
+# Detect architecture for the installer (prefer 64-bit on Raspberry Pi OS)
+UNAME_ARCH="$(uname -m)"
+DOTNET_ARCH="arm64"
+if [ "$UNAME_ARCH" = "aarch64" ]; then
+    DOTNET_ARCH="arm64"
+elif [ "$UNAME_ARCH" = "armv7l" ]; then
+    # Fall back to arm if running 32-bit OS (not recommended for ASP.NET Core)
+    DOTNET_ARCH="arm"
+fi
+
 DOTNET_INSTALLED=false
 for attempt in 1 2 3; do
     echo "Attempt $attempt: Downloading .NET installer..."
-    if curl -L https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh --max-time 60 --retry 3; then
+    if curl -fSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh --max-time 60 --retry 3; then
         chmod +x dotnet-install.sh
-        if ./dotnet-install.sh --channel 10.0 --install-dir /usr/local/dotnet; then
+        # Install ASP.NET Core runtime only to reduce memory footprint
+        if ./dotnet-install.sh \
+            --runtime aspnetcore \
+            --channel 10.0 \
+            --install-dir /usr/local/dotnet \
+            --architecture "$DOTNET_ARCH"; then
             DOTNET_INSTALLED=true
             break
         fi
@@ -61,8 +77,9 @@ for attempt in 1 2 3; do
 done
 
 if [ "$DOTNET_INSTALLED" = false ]; then
-    echo -e "${YELLOW}Warning: .NET installation had issues, trying apt package...${NC}"
-    apt install -y dotnet-sdk-10.0 || apt install -y dotnet-runtime-10.0 || true
+    echo -e "${YELLOW}Warning: .NET installation had issues, trying apt package (runtime only)...${NC}"
+    # Prefer ASP.NET Core runtime package; fall back to generic runtime if needed
+    apt install -y aspnetcore-runtime-10.0 || apt install -y dotnet-runtime-10.0 || true
 fi
 
 export PATH=$PATH:/usr/local/dotnet:/root/.dotnet/tools
@@ -73,6 +90,33 @@ echo "Creating terrarium user and directories..."
 useradd -m -s /bin/bash terrarium || true
 mkdir -p /opt/terrarium
 chown terrarium:terrarium /opt/terrarium
+
+# Create app launcher script to handle self-contained or framework-dependent deployments
+echo "Creating app launcher script..."
+cat > /opt/terrarium/run.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Prefer self-contained binary if present
+if [ -x "/opt/terrarium/TerrariumController" ]; then
+    exec /opt/terrarium/TerrariumController
+elif [ -f "/opt/terrarium/TerrariumController.dll" ]; then
+    # Try local dotnet install dir first, then system dotnet
+    if [ -x "/usr/local/dotnet/dotnet" ]; then
+        exec /usr/local/dotnet/dotnet /opt/terrarium/TerrariumController.dll
+    elif command -v dotnet >/dev/null 2>&1; then
+        exec dotnet /opt/terrarium/TerrariumController.dll
+    else
+        echo "dotnet runtime not found; install ASP.NET Core runtime or deploy self-contained binary" >&2
+        exit 1
+    fi
+else
+    echo "Terrarium app not found in /opt/terrarium (expected TerrariumController or TerrariumController.dll)" >&2
+    exit 1
+fi
+EOF
+chown terrarium:terrarium /opt/terrarium/run.sh
+chmod +x /opt/terrarium/run.sh
 
 # Install GPIO dependencies
 echo "Installing GPIO dependencies..."
@@ -152,16 +196,33 @@ if [ -n "$APP_SOURCE" ] && [ -d "$APP_SOURCE" ]; then
     echo "Deploying pre-built app from $APP_SOURCE..."
     cp -R "$APP_SOURCE"/* /opt/terrarium/
     chown -R terrarium:terrarium /opt/terrarium
-    find /opt/terrarium -type f -name "TerrariumController*" -executable || chmod +x /opt/terrarium/TerrariumController || true
+    chmod +x /opt/terrarium/TerrariumController || true
+else
+    echo -e "${YELLOW}Warning: No pre-built app found in ./app${NC}"
+    echo -e "${YELLOW}After copying the published app to /opt/terrarium/, run:${NC}"
+    echo -e "${YELLOW}  sudo chown -R terrarium:terrarium /opt/terrarium${NC}"
+fi
+
+# Verify app deployment (binary or DLL)
+if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/TerrariumController.dll" ]; then
     echo -e "${GREEN}App deployed successfully${NC}"
+else
+    echo -e "${RED}Error: TerrariumController.dll not found in /opt/terrarium${NC}"
+    echo -e "${RED}Deploy the app before starting the service${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"
 echo ""
 echo "Next steps:"
-echo "1. Start the service: systemctl start terrarium"
-echo "2. View logs: journalctl -u terrarium -f"
-echo "3. Access UI at http://localhost:5000 (or http://<pi-ip>:5000)"
+echo "1. Deploy app: cp -R <path-to-published-app>/* /opt/terrarium/"
+echo "2. Set permissions: sudo chown -R terrarium:terrarium /opt/terrarium"
+echo "3. Start service: sudo systemctl start terrarium"
+echo "4. Check status: sudo systemctl status terrarium"
+echo "5. View logs: sudo journalctl -u terrarium -f"
+echo "6. Access UI at http://localhost:5000 (or http://<pi-ip>:5000)"
 echo ""
-echo "To manually start for testing:"
-echo "  sudo -u terrarium /usr/local/dotnet/dotnet /opt/terrarium/TerrariumController.dll"
+echo "To manually test (before service start):"
+echo "  sudo -u terrarium /opt/terrarium/run.sh"
+echo ""
+echo "If service fails to start:"
+echo "  sudo journalctl -u terrarium -n 50 -e"
