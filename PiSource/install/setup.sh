@@ -1,10 +1,31 @@
 #!/bin/bash
 # Raspberry Pi Terrarium Controller Setup Script
-# Run this script to install all dependencies and configure the system
+# This script MUST be run on Raspberry Pi OS with sudo
+# Usage: sudo bash setup.sh
+#
+# Do NOT run this on non-Raspberry Pi systems - it will modify system configuration
 
 set -e
 
 echo "=== Terrarium Controller Setup ===" 
+
+# Check if running on Raspberry Pi OS or ARM Debian (Raspberry Pi OS is Debian-based)
+if [ ! -f /etc/os-release ]; then
+    echo -e "${RED}Error: Cannot detect OS${NC}"
+    exit 1
+fi
+
+# Check for ARM architecture (Raspberry Pi indicator) - supports both 32-bit (arm) and 64-bit (aarch64)
+ARCH=$(uname -m)
+if ! echo "$ARCH" | grep -qE "arm|aarch64"; then
+    echo -e "${RED}Error: This script is designed for ARM-based Raspberry Pi systems only${NC}"
+    echo "Detected architecture: $ARCH"
+    echo "Detected OS: $(grep PRETTY_NAME /etc/os-release)"
+    echo "Aborting to prevent system damage on non-Pi systems."
+    exit 1
+fi
+
+echo "Detected ARM-based system ($ARCH) - proceeding with setup..."
 
 # Color output
 RED='\033[0;31m'
@@ -56,16 +77,29 @@ chown terrarium:terrarium /opt/terrarium
 # Install GPIO dependencies
 echo "Installing GPIO dependencies..."
 # Try multiple GPIO library options for compatibility
-apt install -y libgpiod-dev || apt install -y gpiod || echo "GPIO libraries may need manual installation"
-apt install -y python3-gpiozero python3-rpi.gpio || echo "Python GPIO bindings optional"
+if ! apt install -y libgpiod-dev; then
+    echo -e "${YELLOW}Warning: libgpiod-dev installation failed, trying gpiod...${NC}"
+    apt install -y gpiod || echo -e "${YELLOW}GPIO libraries may need manual installation${NC}"
+fi
+if ! apt install -y python3-gpiozero python3-rpi.gpio; then
+    echo -e "${YELLOW}Warning: Python GPIO bindings not available (optional)${NC}"
+fi
 
 # Install mjpg-streamer for camera streaming
 echo "Installing mjpg-streamer..."
-apt install -y mjpg-streamer || apt install -y libjpeg-turbo-progs || echo "mjpg-streamer may need manual setup"
+if ! apt install -y mjpg-streamer; then
+    echo -e "${YELLOW}Warning: mjpg-streamer not available, trying libjpeg-turbo-progs...${NC}"
+    apt install -y libjpeg-turbo-progs || echo -e "${YELLOW}mjpg-streamer may need manual setup${NC}"
+fi
 
 # Copy systemd service unit
 echo "Installing systemd service..."
-cp terrarium.service /etc/systemd/system/
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -f "$SCRIPT_DIR/terrarium.service" ]; then
+    echo -e "${RED}Error: terrarium.service not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+cp "$SCRIPT_DIR/terrarium.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable terrarium
 
@@ -87,16 +121,39 @@ chown terrarium:terrarium /home/terrarium/.config/autostart/terrarium-kiosk.desk
 echo "Configuring GPIO permissions..."
 usermod -a -G dialout terrarium
 usermod -a -G video terrarium
-usermod -a -G gpio terrarium || true
+# Add gpio group if it exists
+if getent group gpio > /dev/null; then
+    usermod -a -G gpio terrarium
+    echo "Added terrarium to gpio group"
+else
+    echo -e "${YELLOW}Note: gpio group not found, skipping gpio group assignment${NC}"
+fi
 
 # Deploy pre-built app if present
-if [ -d "app" ]; then
-    echo "Deploying pre-built app..."
-    cp -R app/* /opt/terrarium/
-    chown -R terrarium:terrarium /opt/terrarium
-    chmod +x /opt/terrarium/TerrariumController || true
+echo "Looking for pre-built app..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Check multiple possible locations
+APP_SOURCE=""
+if [ -d "$SCRIPT_DIR/app" ]; then
+    APP_SOURCE="$SCRIPT_DIR/app"
+elif [ -d "$PARENT_DIR/bin/Release/net10.0" ]; then
+    APP_SOURCE="$PARENT_DIR/bin/Release/net10.0"
 else
-    echo -e "${YELLOW}Warning: No pre-built app found in ./app${NC}"
+    echo -e "${YELLOW}Warning: No pre-built app found${NC}"
+    echo "Expected locations:"
+    echo "  - $SCRIPT_DIR/app"
+    echo "  - $PARENT_DIR/bin/Release/net10.0"
+    echo "Build with: dotnet publish -c Release"
+fi
+
+if [ -n "$APP_SOURCE" ] && [ -d "$APP_SOURCE" ]; then
+    echo "Deploying pre-built app from $APP_SOURCE..."
+    cp -R "$APP_SOURCE"/* /opt/terrarium/
+    chown -R terrarium:terrarium /opt/terrarium
+    find /opt/terrarium -type f -name "TerrariumController*" -executable || chmod +x /opt/terrarium/TerrariumController || true
+    echo -e "${GREEN}App deployed successfully${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"
