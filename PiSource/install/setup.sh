@@ -243,6 +243,28 @@ fi
 # Verify app deployment (binary or DLL)
 if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/TerrariumController.dll" ]; then
     echo -e "${GREEN}App deployed successfully${NC}"
+    
+    # Start the service automatically
+    echo ""
+    echo "Starting terrarium service..."
+    systemctl start terrarium
+    
+    # Wait a moment for service to start
+    sleep 2
+    
+    # Check service status
+    echo ""
+    echo "Service status:"
+    if systemctl is-active --quiet terrarium; then
+        echo -e "${GREEN}✓ Terrarium service is running${NC}"
+        systemctl status terrarium --no-pager -l | head -n 15
+    else
+        echo -e "${RED}✗ Terrarium service failed to start${NC}"
+        echo "Recent logs:"
+        journalctl -u terrarium -n 20 --no-pager
+        echo ""
+        echo -e "${RED}Service failed - see logs above${NC}"
+    fi
 else
     echo -e "${YELLOW}Note: App not yet deployed to /opt/terrarium${NC}"
     echo -e "${YELLOW}Build and deploy the app before starting the service${NC}"
@@ -250,16 +272,12 @@ fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"
 echo ""
-echo "Next steps:"
-echo "1. Deploy app: cp -R <path-to-published-app>/* /opt/terrarium/"
-echo "2. Set permissions: sudo chown -R terrarium:terrarium /opt/terrarium"
-echo "3. Start service: sudo systemctl start terrarium"
-echo "4. Check status: sudo systemctl status terrarium"
-echo "5. View logs: sudo journalctl -u terrarium -f"
-echo "6. Access UI at http://localhost:5000 (or http://<pi-ip>:5000)"
+echo "Access the UI at:"
+echo "  http://localhost:5000"
+echo "  http://$(hostname -I | awk '{print $1}'):5000"
 echo ""
-echo "To manually test (before service start):"
-echo "  sudo -u terrarium /opt/terrarium/run.sh"
-echo ""
-echo "If service fails to start:"
-echo "  sudo journalctl -u terrarium -n 50 -e"
+echo "Useful commands:"
+echo "  Restart service:  sudo systemctl restart terrarium"
+echo "  View logs:        sudo journalctl -u terrarium -f"
+echo "  Stop service:     sudo systemctl stop terrarium"
+echo "  Manual test:      sudo -u terrarium /opt/terrarium/run.sh"
