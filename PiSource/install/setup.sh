@@ -193,6 +193,55 @@ else
     echo -e "${YELLOW}Note: gpio group not found, skipping gpio group assignment${NC}"
 fi
 
+# Configure firewall if active
+echo "Checking firewall configuration..."
+FIREWALL_FOUND=false
+
+# Check UFW (Ubuntu/Debian)
+if command -v ufw >/dev/null 2>&1; then
+    if ufw status | grep -q "Status: active"; then
+        echo "UFW firewall is active, opening port 5000..."
+        ufw allow 5000/tcp
+        echo -e "${GREEN}Port 5000 opened in UFW firewall${NC}"
+        FIREWALL_FOUND=true
+    fi
+# Check firewalld (RHEL/CentOS)
+elif command -v firewall-cmd >/dev/null 2>&1; then
+    if firewall-cmd --state 2>/dev/null | grep -q "running"; then
+        echo "firewalld is active, opening port 5000..."
+        firewall-cmd --permanent --add-port=5000/tcp
+        firewall-cmd --reload
+        echo -e "${GREEN}Port 5000 opened in firewalld${NC}"
+        FIREWALL_FOUND=true
+    fi
+# Check iptables (most common on Raspberry Pi OS)
+elif command -v iptables >/dev/null 2>&1; then
+    # Check if iptables has rules (if it returns more than just headers, there are rules)
+    if [ "$(iptables -L -n | wc -l)" -gt 8 ]; then
+        echo "iptables firewall detected, checking for port 5000 rule..."
+        if ! iptables -C INPUT -p tcp --dport 5000 -j ACCEPT 2>/dev/null; then
+            echo "Adding iptables rule for port 5000..."
+            iptables -I INPUT -p tcp --dport 5000 -j ACCEPT
+            # Save rules permanently
+            if command -v netfilter-persistent >/dev/null 2>&1; then
+                netfilter-persistent save
+            elif command -v iptables-save >/dev/null 2>&1; then
+                iptables-save > /etc/iptables/rules.v4 || true
+            fi
+            echo -e "${GREEN}Port 5000 opened in iptables${NC}"
+        else
+            echo "Port 5000 already allowed in iptables"
+        fi
+        FIREWALL_FOUND=true
+    else
+        echo "iptables present but no restrictive rules detected"
+    fi
+fi
+
+if [ "$FIREWALL_FOUND" = false ]; then
+    echo "No active firewall detected - port 5000 should be accessible"
+fi
+
 # Deploy pre-built app if present
 echo "Looking for pre-built app..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -258,6 +307,27 @@ if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/Terrarium
     if systemctl is-active --quiet terrarium; then
         echo -e "${GREEN}✓ Terrarium service is running${NC}"
         systemctl status terrarium --no-pager -l | head -n 15
+        
+        # Check if port 5000 is listening
+        echo ""
+        echo "Network status:"
+        if command -v netstat >/dev/null 2>&1; then
+            netstat -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
+        elif command -v ss >/dev/null 2>&1; then
+            ss -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
+        fi
+        
+        # Try to connect to the service
+        echo ""
+        if command -v curl >/dev/null 2>&1; then
+            echo "Testing connection..."
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000 --connect-timeout 5 --max-time 10 | grep -q "200\|302"; then
+                echo -e "${GREEN}✓ Service is responding on port 5000${NC}"
+            else
+                echo -e "${YELLOW}⚠ Service started but not responding yet (may still be initializing)${NC}"
+                echo "Wait 10 seconds and try: curl http://localhost:5000"
+            fi
+        fi
     else
         echo -e "${RED}✗ Terrarium service failed to start${NC}"
         echo "Recent logs:"
