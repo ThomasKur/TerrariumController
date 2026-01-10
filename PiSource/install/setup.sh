@@ -26,6 +26,25 @@ apt upgrade -y
 # Install .NET ASP.NET Core Runtime (runtime only; app is pre-built)
 echo "Installing .NET ASP.NET Core Runtime..."
 
+# Check if dotnet is already installed
+DOTNET_INSTALLED=false
+if command -v dotnet >/dev/null 2>&1 || [ -x "/usr/local/dotnet/dotnet" ]; then
+    DOTNET_CMD=""
+    if [ -x "/usr/local/dotnet/dotnet" ]; then
+        DOTNET_CMD="/usr/local/dotnet/dotnet"
+    else
+        DOTNET_CMD="dotnet"
+    fi
+    
+    # Check if ASP.NET Core runtime 10.0 is installed
+    if $DOTNET_CMD --list-runtimes 2>/dev/null | grep -q "Microsoft.AspNetCore.App 10\."; then
+        echo -e "${GREEN}.NET ASP.NET Core Runtime 10.0 already installed, skipping...${NC}"
+        DOTNET_INSTALLED=true
+    else
+        echo "dotnet found but ASP.NET Core 10.0 runtime not detected, will install..."
+    fi
+fi
+
 # Detect architecture for the installer (prefer 64-bit on Raspberry Pi OS)
 UNAME_ARCH="$(uname -m)"
 DOTNET_ARCH="arm64"
@@ -36,7 +55,7 @@ elif [ "$UNAME_ARCH" = "armv7l" ]; then
     DOTNET_ARCH="arm"
 fi
 
-DOTNET_INSTALLED=false
+if [ "$DOTNET_INSTALLED" = false ]; then
 for attempt in 1 2 3; do
     echo "Attempt $attempt: Downloading .NET installer..."
     if curl -fSL https://dot.net/v1/dotnet-install.sh -o dotnet-install.sh --max-time 60 --retry 3; then
@@ -55,10 +74,11 @@ for attempt in 1 2 3; do
     sleep 5
 done
 
-if [ "$DOTNET_INSTALLED" = false ]; then
-    echo -e "${YELLOW}Warning: .NET installation had issues, trying apt package (runtime only)...${NC}"
-    # Prefer ASP.NET Core runtime package; fall back to generic runtime if needed
-    apt install -y aspnetcore-runtime-10.0 || apt install -y dotnet-runtime-10.0 || true
+    if [ "$DOTNET_INSTALLED" = false ]; then
+        echo -e "${YELLOW}Warning: .NET installation had issues, trying apt package (runtime only)...${NC}"
+        # Prefer ASP.NET Core runtime package; fall back to generic runtime if needed
+        apt install -y aspnetcore-runtime-10.0 || apt install -y dotnet-runtime-10.0 || true
+    fi
 fi
 
 export PATH=$PATH:/usr/local/dotnet:/root/.dotnet/tools
