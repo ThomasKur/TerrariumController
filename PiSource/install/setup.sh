@@ -197,38 +197,55 @@ fi
 echo "Looking for pre-built app..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$PARENT_DIR/TerrariumController"
 
 # Check multiple possible locations
 APP_SOURCE=""
 if [ -d "$SCRIPT_DIR/app" ]; then
     APP_SOURCE="$SCRIPT_DIR/app"
+elif [ -d "$PROJECT_DIR/bin/Release/net10.0/publish" ]; then
+    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0/publish"
+elif [ -d "$PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish" ]; then
+    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish"
+elif [ -d "$PROJECT_DIR/bin/Release/net10.0" ]; then
+    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0"
+elif [ -d "$PARENT_DIR/bin/Release/net10.0/publish" ]; then
+    APP_SOURCE="$PARENT_DIR/bin/Release/net10.0/publish"
 elif [ -d "$PARENT_DIR/bin/Release/net10.0" ]; then
     APP_SOURCE="$PARENT_DIR/bin/Release/net10.0"
-else
-    echo -e "${YELLOW}Warning: No pre-built app found${NC}"
-    echo "Expected locations:"
-    echo "  - $SCRIPT_DIR/app"
-    echo "  - $PARENT_DIR/bin/Release/net10.0"
-    echo "Build with: dotnet publish -c Release"
 fi
 
 if [ -n "$APP_SOURCE" ] && [ -d "$APP_SOURCE" ]; then
     echo "Deploying pre-built app from $APP_SOURCE..."
     cp -R "$APP_SOURCE"/* /opt/terrarium/
     chown -R terrarium:terrarium /opt/terrarium
-    chmod +x /opt/terrarium/TerrariumController || true
+    chmod +x /opt/terrarium/TerrariumController 2>/dev/null || true
+    chmod +x /opt/terrarium/run.sh
 else
-    echo -e "${YELLOW}Warning: No pre-built app found in ./app${NC}"
-    echo -e "${YELLOW}After copying the published app to /opt/terrarium/, run:${NC}"
+    echo -e "${YELLOW}Warning: No pre-built app found${NC}"
+    echo "Expected locations (in order of preference):"
+    echo "  - $SCRIPT_DIR/app"
+    echo "  - $PROJECT_DIR/bin/Release/net10.0/publish"
+    echo "  - $PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish"
+    echo ""
+    echo "Build with one of:"
+    echo "  cd $PARENT_DIR"
+    echo "  dotnet publish TerrariumController/TerrariumController.csproj -c Release"
+    echo "  # OR for self-contained:"
+    echo "  dotnet publish TerrariumController/TerrariumController.csproj -c Release -r linux-arm64 --self-contained"
+    echo ""
+    echo -e "${YELLOW}After building, re-run this setup script OR manually copy:${NC}"
+    echo -e "${YELLOW}  sudo cp -R <publish-folder>/* /opt/terrarium/${NC}"
     echo -e "${YELLOW}  sudo chown -R terrarium:terrarium /opt/terrarium${NC}"
+    echo -e "${YELLOW}  sudo chmod +x /opt/terrarium/run.sh${NC}"
 fi
 
 # Verify app deployment (binary or DLL)
 if [ -x "/opt/terrarium/TerrariumController" ] || [ -f "/opt/terrarium/TerrariumController.dll" ]; then
     echo -e "${GREEN}App deployed successfully${NC}"
 else
-    echo -e "${RED}Error: TerrariumController.dll not found in /opt/terrarium${NC}"
-    echo -e "${RED}Deploy the app before starting the service${NC}"
+    echo -e "${YELLOW}Note: App not yet deployed to /opt/terrarium${NC}"
+    echo -e "${YELLOW}Build and deploy the app before starting the service${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"
