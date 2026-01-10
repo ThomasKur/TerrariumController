@@ -9,7 +9,7 @@ Restart=on-failure
 RestartSec=10
 User=terrarium
 WorkingDirectory=/opt/terrarium
-ExecStart=/usr/bin/dotnet /opt/terrarium/TerrariumController.dll
+ExecStart=/opt/terrarium/run.sh
 StandardOutput=journal
 StandardError=journal
 
