@@ -74,6 +74,20 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
     var tempFile = Path.Combine("/tmp", $"snapshot_{Guid.NewGuid()}.jpg");
     var logFile = "/tmp/rpicam-still.log";
 
+    // Kill any lingering rpicam-still processes to release the camera
+    var killCmd = "killall -9 rpicam-still 2>/dev/null || true; sleep 0.5";
+    var killPsi = new ProcessStartInfo
+    {
+        FileName = "/bin/bash",
+        ArgumentList = { "-c", killCmd },
+        UseShellExecute = false,
+        CreateNoWindow = true
+    };
+    using (var killProc = Process.Start(killPsi))
+    {
+        await killProc.WaitForExitAsync();
+    }
+
     var shellCmd = $"rpicam-still -n --width {width} --height {height} -o {tempFile} -t 2000 >> {logFile} 2>&1; echo $? >> {logFile}";
     
     var psi = new ProcessStartInfo

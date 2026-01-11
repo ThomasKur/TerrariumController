@@ -7,6 +7,6 @@ function startCameraSnapshot(path) {
     };
     refresh();
     clearInterval(cameraTimer);
-    cameraTimer = setInterval(refresh, 1000);
+    cameraTimer = setInterval(refresh, 5000);
 }
 
