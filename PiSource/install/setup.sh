@@ -120,18 +120,18 @@ fi
 # Verify camera is accessible
 if [ -c /dev/video0 ]; then
     echo -e "${GREEN}Camera device /dev/video0 detected${NC}"
-    # Test if camera works with libcamera
-    if timeout 3 libcamera-hello --list-cameras 2>/dev/null | grep -q Camera; then
-        echo -e "${GREEN}libcamera found and camera is accessible${NC}"
+    # Test if camera works with rpicam
+    if timeout 3 rpicam-hello 2>/dev/null | head -1 | grep -q "Camera"; then
+        echo -e "${GREEN}rpicam tools found and camera is accessible${NC}"
     else
-        echo -e "${YELLOW}Warning: libcamera test inconclusive; verify with: libcamera-hello --list-cameras${NC}"
+        echo -e "${YELLOW}Warning: rpicam test inconclusive; verify with: rpicam-hello${NC}"
     fi
 else
     echo -e "${YELLOW}Warning: Camera device /dev/video0 not found${NC}"
 fi
 
 echo "Test command to verify camera stream:"
-echo "  libcamera-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg"
+echo "  rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg"
 
 # Copy systemd service unit
 echo "Installing systemd service..."

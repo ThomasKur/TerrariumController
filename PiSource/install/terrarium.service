@@ -15,7 +15,7 @@ Environment="CAMERA_DEVICE=/dev/video0"
 Environment="CAMERA_RES=640x480"
 Environment="CAMERA_FPS=15"
 ExecStart=/opt/terrarium/run.sh
-ExecStartPost=/bin/sh -c 'sleep 2; mkdir -p /opt/terrarium/logs; libcamera-vid --codec mjpeg -t 0 --width ${CAMERA_WIDTH:-640} --height ${CAMERA_HEIGHT:-480} --framerate ${CAMERA_FPS:-15} --listen -o tcp://0.0.0.0:8080 > /opt/terrarium/logs/camera-stream.log 2>&1 &'
+ExecStartPost=/bin/sh -c 'sleep 2; mkdir -p /opt/terrarium/logs; rpicam-vid --codec mjpeg -t 0 --width ${CAMERA_WIDTH:-640} --height ${CAMERA_HEIGHT:-480} --framerate ${CAMERA_FPS:-15} --listen -o tcp://0.0.0.0:8080 > /opt/terrarium/logs/camera-stream.log 2>&1 &'
 StandardOutput=journal
 StandardError=journal
 
