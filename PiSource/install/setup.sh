@@ -44,6 +44,12 @@ echo "Updating system packages..."
 apt update
 apt upgrade -y
 
+# Stop existing service if present to avoid conflicts during redeploy
+if systemctl list-unit-files | grep -q '^terrarium.service'; then
+    echo "Stopping terrarium service before redeploy..."
+    systemctl stop terrarium 2>/dev/null || true
+fi
+
 # .NET runtime installation removed — default deployment uses self-contained binaries.
 # If you choose framework-dependent deployment, ensure the ASP.NET Core runtime 10.x
 # is installed manually (apt install aspnetcore-runtime-10.0) before starting the service.
@@ -85,9 +91,46 @@ fi
 
 # Install mjpg-streamer for camera streaming
 echo "Installing mjpg-streamer..."
-if ! apt install -y mjpg-streamer; then
-    echo -e "${YELLOW}Warning: mjpg-streamer not available, trying libjpeg-turbo-progs...${NC}"
-    apt install -y libjpeg-turbo-progs || echo -e "${YELLOW}mjpg-streamer may need manual setup${NC}"
+
+MJPG_SRC_DIR="/opt/mjpg-streamer-src"
+MJPG_BUILD_DIR="$MJPG_SRC_DIR/mjpg-streamer-experimental"
+MJPG_INSTALLED=false
+
+if apt install -y mjpg-streamer; then
+    MJPG_INSTALLED=true
+else
+    echo -e "${YELLOW}apt package mjpg-streamer not available; building from source...${NC}"
+    apt install -y git build-essential cmake libjpeg62-turbo-dev libv4l-dev imagemagick || echo -e "${YELLOW}Some build dependencies failed to install${NC}"
+
+    if [ ! -d "$MJPG_SRC_DIR" ]; then
+        git clone --depth 1 https://github.com/jacksonliam/mjpg-streamer.git "$MJPG_SRC_DIR" || echo -e "${YELLOW}Clone failed${NC}"
+    else
+        git -C "$MJPG_SRC_DIR" pull --ff-only || echo -e "${YELLOW}Git pull failed, continuing with existing source${NC}"
+    fi
+
+    if [ -d "$MJPG_BUILD_DIR" ]; then
+        (cd "$MJPG_BUILD_DIR" && make clean || true)
+        if (cd "$MJPG_BUILD_DIR" && make && make install); then
+            MJPG_INSTALLED=true
+        else
+            echo -e "${YELLOW}mjpg-streamer build failed${NC}"
+        fi
+    else
+        echo -e "${YELLOW}mjpg-streamer source directory missing after clone${NC}"
+    fi
+fi
+
+if [ "$MJPG_INSTALLED" = true ]; then
+    if command -v mjpg_streamer >/dev/null 2>&1; then
+        echo -e "${GREEN}mjpg-streamer installed at $(command -v mjpg_streamer)${NC}"
+        echo "Test command (adjust -i args for your camera):"
+        echo "  mjpg_streamer -i 'input_uvc.so -f 15 -r 1280x720' -o 'output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www'"
+    else
+        echo -e "${YELLOW}mjpg-streamer build completed but binary not found in PATH${NC}"
+    fi
+else
+    echo -e "${YELLOW}mjpg-streamer could not be installed automatically${NC}"
+    echo "Check build logs above or install manually from source."
 fi
 
 # Copy systemd service unit
