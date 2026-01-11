@@ -71,13 +71,15 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
     if (ctx.Request.Query.ContainsKey("w")) int.TryParse(ctx.Request.Query["w"], out width);
     if (ctx.Request.Query.ContainsKey("h")) int.TryParse(ctx.Request.Query["h"], out height);
 
-    var tempFile = Path.Combine(Path.GetTempPath(), $"snapshot_{Guid.NewGuid()}.jpg");
+    var tempFile = Path.Combine("/tmp", $"snapshot_{Guid.NewGuid()}.jpg");
+    var logFile = "/tmp/rpicam-still.log";
 
+    var shellCmd = $"rpicam-still -n --width {width} --height {height} -o {tempFile} -t 2000 >> {logFile} 2>&1; echo $? >> {logFile}";
+    
     var psi = new ProcessStartInfo
     {
-        FileName = "rpicam-still",
-        ArgumentList = { "-n", "--width", width.ToString(), "--height", height.ToString(), "-o", tempFile, "-t", "1000" },
-        RedirectStandardError = true,
+        FileName = "/bin/bash",
+        ArgumentList = { "-c", shellCmd },
         UseShellExecute = false,
         CreateNoWindow = true
     };
@@ -95,10 +97,12 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
         using var cts = new CancellationTokenSource(timeoutMs);
         await proc.WaitForExitAsync(cts.Token);
 
-        if (!File.Exists(tempFile))
+        if (!File.Exists(tempFile) || new FileInfo(tempFile).Length == 0)
         {
+            string logOutput = "";
+            try { logOutput = await File.ReadAllTextAsync(logFile); } catch { }
             ctx.Response.StatusCode = 500;
-            await ctx.Response.WriteAsync("Camera failed to capture image");
+            await ctx.Response.WriteAsync($"Camera failed. Log: {logOutput}");
             return;
         }
 
