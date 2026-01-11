@@ -6,6 +6,7 @@
 @inject IRelayService RelayService
 @inject ISettingsService SettingsService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JS
 
 <PageTitle>Terrarium Controller</PageTitle>
 
@@ -79,7 +80,7 @@
                 <span class="label">Live Feed</span>
             </div>
             <div class="camera-frame">
-                <img src="http://localhost:8080/stream.mjpg" alt="Camera Feed" />
+                <img id="camera-feed" alt="Camera Feed" />
             </div>
         </div>
     </section>
@@ -299,6 +300,17 @@
         OnTime = CurrentSettings.Relay4OnTime;
         OffTime = CurrentSettings.Relay4OffTime;
         await RefreshReadings();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var uri = new Uri(NavigationManager.Uri);
+            var cameraUrl = $"http://{uri.Host}:8080/stream.mjpg";
+            await JS.InvokeVoidAsync("setCameraUrl", cameraUrl);
+        }
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task RefreshReadings()
