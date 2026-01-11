@@ -95,6 +95,7 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
         // Read JPEG bytes from stdout (rpicam-still writes the image to stdout)
         using var ms = new MemoryStream();
         await proc.StandardOutput.BaseStream.CopyToAsync(ms, cts.Token);
+        await proc.WaitForExitAsync(cts.Token);
         var bytes = ms.ToArray();
         ctx.Response.ContentType = "image/jpeg";
         await ctx.Response.Body.WriteAsync(bytes);
