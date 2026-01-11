@@ -116,7 +116,7 @@ while true; do
     rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null \
     | ffmpeg -hide_banner -loglevel warning -nostdin \
             -f mjpeg -i - \
-            -f mpjpeg -fflags nobuffer -flags low_delay http://0.0.0.0:8080/stream.mjpg \
+            -f mpjpeg -boundary_tag frame -muxdelay 0 -listen 1 http://0.0.0.0:8080/stream.mjpg \
             >> /opt/terrarium/logs/camera-stream.log 2>&1
 
     echo "camera pipeline exited, restarting in 1s" >> /opt/terrarium/logs/camera-stream.log
