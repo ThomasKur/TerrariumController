@@ -112,9 +112,9 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
 fi
 
 # Install camera streaming tools
-echo "Installing libcamera tools..."
-if ! apt install -y libcamera-tools libcamera-apps; then
-    echo -e "${YELLOW}Warning: libcamera-tools installation failed${NC}"
+echo "Installing libcamera tools and ffmpeg..."
+if ! apt install -y libcamera-tools libcamera-apps ffmpeg; then
+    echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
 fi
 
 # Verify camera is accessible
