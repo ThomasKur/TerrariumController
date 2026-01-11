@@ -2,6 +2,8 @@ using TerrariumController.Data;
 using TerrariumController.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Device.Gpio;
+using Iot.Device.DHTxx;
+using UnitsNet;
 
 namespace TerrariumController.Services
 {
@@ -112,72 +114,25 @@ namespace TerrariumController.Services
         {
             try
             {
-                // Initialize GPIO controller if not already done
-                if (_gpioController == null)
+                // Use BCM (logical) numbering; Settings use BCM pin numbers
+                using var dht = new Dht22(gpioPin, PinNumberingScheme.Logical);
+
+                // Try up to 3 times since DHT22 can be finicky
+                for (int attempt = 1; attempt <= 3; attempt++)
                 {
-                    _gpioController = new GpioController();
+                    if (dht.TryReadTemperature(out var temperature) && dht.TryReadHumidity(out var humidity))
+                    {
+                        double tempC = temperature.DegreesCelsius;
+                        double humPct = humidity.Percent;
+                        _logger.LogInformation("DHT22 Sensor {SensorId}: T={Temperature:F1}°C, RH={Humidity:F1}% (attempt {Attempt})", sensorId, tempC, humPct, attempt);
+                        return (tempC, humPct);
+                    }
+
+                    await Task.Delay(500);
                 }
 
-                // Open the pin for DHT22 communication
-                _gpioController.OpenPin(gpioPin, PinMode.Output);
-
-                try
-                {
-                    // DHT22 communication protocol:
-                    // 1. Pull low for 1-10ms to signal wake-up
-                    _gpioController.Write(gpioPin, PinValue.Low);
-                    await Task.Delay(5);
-
-                    // 2. Pull high and wait for DHT22 response
-                    _gpioController.Write(gpioPin, PinValue.High);
-                    _gpioController.SetPinMode(gpioPin, PinMode.Input);
-
-                    // Wait for DHT22 to respond (should pull low)
-                    var timeout = DateTime.UtcNow.AddMilliseconds(100);
-                    while (_gpioController.Read(gpioPin) == PinValue.High && DateTime.UtcNow < timeout)
-                    {
-                        await Task.Delay(1);
-                    }
-
-                    if (DateTime.UtcNow >= timeout)
-                    {
-                        _logger.LogWarning("DHT22 sensor {SensorId} did not respond on GPIO {GpioPin}", sensorId, gpioPin);
-                        return (null, null);
-                    }
-
-                    // Read 40 bits of data (humidity high, humidity low, temperature high, temperature low, checksum)
-                    byte[] data = new byte[5];
-                    bool dataValid = await ReadDHT22BitsAsync(gpioPin, data);
-
-                    if (!dataValid)
-                    {
-                        _logger.LogWarning("DHT22 sensor {SensorId} checksum validation failed", sensorId);
-                        return (null, null);
-                    }
-
-                    // Parse the data
-                    int humidity = (data[0] << 8) | data[1];
-                    int temperature = ((data[2] & 0x7F) << 8) | data[3];
-                    bool isFahrenheit = (data[2] & 0x80) != 0;
-
-                    double temperatureCelsius = temperature / 10.0;
-                    if (isFahrenheit)
-                    {
-                        temperatureCelsius = (temperatureCelsius - 32) * 5.0 / 9.0;
-                    }
-
-                    double humidityPercent = humidity / 10.0;
-
-                    _logger.LogInformation(
-                        "DHT22 Sensor {SensorId}: T={Temperature:F1}°C, RH={Humidity:F1}%",
-                        sensorId, temperatureCelsius, humidityPercent);
-
-                    return (temperatureCelsius, humidityPercent);
-                }
-                finally
-                {
-                    _gpioController.ClosePin(gpioPin);
-                }
+                _logger.LogWarning("DHT22 sensor {SensorId} read failed after retries on GPIO {GpioPin}", sensorId, gpioPin);
+                return (null, null);
             }
             catch (Exception ex)
             {
@@ -186,64 +141,7 @@ namespace TerrariumController.Services
             }
         }
 
-        private async Task<bool> ReadDHT22BitsAsync(int gpioPin, byte[] data)
-        {
-            try
-            {
-                Array.Clear(data, 0, data.Length);
-
-                // Wait for sensor to pull low
-                var lowTimeout = DateTime.UtcNow.AddMilliseconds(100);
-                while (_gpioController!.Read(gpioPin) == PinValue.Low && DateTime.UtcNow < lowTimeout)
-                {
-                    await Task.Delay(1);
-                }
-
-                if (DateTime.UtcNow >= lowTimeout)
-                    return false;
-
-                // Read 40 bits (5 bytes)
-                for (int byteIndex = 0; byteIndex < 5; byteIndex++)
-                {
-                    for (int bitIndex = 0; bitIndex < 8; bitIndex++)
-                    {
-                        // Wait for pin to go low
-                        var bitTimeout = DateTime.UtcNow.AddMilliseconds(200);
-                        while (_gpioController.Read(gpioPin) == PinValue.High && DateTime.UtcNow < bitTimeout)
-                        {
-                            await Task.Delay(1);
-                        }
-
-                        if (DateTime.UtcNow >= bitTimeout)
-                            return false;
-
-                        // Measure high pulse duration to determine bit value
-                        var highStart = DateTime.UtcNow;
-                        while (_gpioController.Read(gpioPin) == PinValue.Low && DateTime.UtcNow < bitTimeout)
-                        {
-                            await Task.Delay(1);
-                        }
-
-                        var highDuration = (DateTime.UtcNow - highStart).TotalMilliseconds;
-
-                        // If high pulse > ~70µs, it's a 1; otherwise it's a 0
-                        if (highDuration > 0.07)
-                        {
-                            data[byteIndex] |= (byte)(1 << (7 - bitIndex));
-                        }
-                    }
-                }
-
-                // Validate checksum
-                byte checksum = (byte)((data[0] + data[1] + data[2] + data[3]) & 0xFF);
-                return checksum == data[4];
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error reading DHT22 bits");
-                return false;
-            }
-        }
+        // Legacy manual bit-banging implementation removed in favor of Iot.Device.DHTxx
 
         private async Task<Dictionary<int, int>> GetSensorGpioMapAsync()
         {

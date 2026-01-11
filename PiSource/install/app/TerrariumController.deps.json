@@ -9,10 +9,11 @@
     ".NETCoreApp,Version=v10.0/linux-arm64": {
       "TerrariumController/1.0.0": {
         "dependencies": {
+          "Iot.Device.Bindings": "3.1.0",
           "Microsoft.EntityFrameworkCore": "10.0.0",
           "Microsoft.EntityFrameworkCore.Sqlite": "10.0.0",
           "Microsoft.EntityFrameworkCore.Tools": "10.0.0",
-          "System.Device.Gpio": "3.0.0",
+          "System.Device.Gpio": "3.1.0",
           "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64": "10.0.1",
           "runtimepack.Microsoft.AspNetCore.App.Runtime.linux-arm64": "10.0.1"
         },
@@ -1335,6 +1336,21 @@
           }
         }
       },
+      "Iot.Device.Bindings/3.1.0": {
+        "dependencies": {
+          "System.Device.Gpio": "3.1.0",
+          "System.Drawing.Common": "6.0.0",
+          "System.IO.Ports": "5.0.1",
+          "System.Management": "5.0.0",
+          "UnitsNet": "5.31.0"
+        },
+        "runtime": {
+          "lib/net6.0/Iot.Device.Bindings.dll": {
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.100.23.56604"
+          }
+        }
+      },
       "Microsoft.Build/17.7.2": {
         "dependencies": {
           "Microsoft.Build.Framework": "17.14.28",
@@ -1775,6 +1791,14 @@
           }
         }
       },
+      "Microsoft.Win32.SystemEvents/6.0.0": {
+        "runtime": {
+          "lib/net6.0/Microsoft.Win32.SystemEvents.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
+          }
+        }
+      },
       "Mono.TextTemplating/3.0.0": {
         "dependencies": {
           "System.CodeDom": "9.0.0"
@@ -1792,6 +1816,18 @@
             "assemblyVersion": "13.0.0.0",
             "fileVersion": "13.0.3.27908"
           }
+        }
+      },
+      "runtime.linux-arm64.runtime.native.System.IO.Ports/5.0.0": {
+        "native": {
+          "runtimes/linux-arm64/native/libSystem.IO.Ports.Native.so": {
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "runtime.native.System.IO.Ports/5.0.1": {
+        "dependencies": {
+          "runtime.linux-arm64.runtime.native.System.IO.Ports": "5.0.0"
         }
       },
       "SQLitePCLRaw.bundle_e_sqlite3/2.1.11": {
@@ -1911,11 +1947,22 @@
           }
         }
       },
-      "System.Device.Gpio/3.0.0": {
+      "System.Device.Gpio/3.1.0": {
         "runtime": {
           "lib/net6.0/System.Device.Gpio.dll": {
-            "assemblyVersion": "3.0.0.0",
-            "fileVersion": "3.0.23.36310"
+            "assemblyVersion": "3.1.0.0",
+            "fileVersion": "3.100.23.56604"
+          }
+        }
+      },
+      "System.Drawing.Common/6.0.0": {
+        "dependencies": {
+          "Microsoft.Win32.SystemEvents": "6.0.0"
+        },
+        "runtime": {
+          "runtimes/unix/lib/net6.0/System.Drawing.Common.dll": {
+            "assemblyVersion": "6.0.0.0",
+            "fileVersion": "6.0.21.52210"
           }
         }
       },
@@ -1924,6 +1971,28 @@
           "lib/net9.0/System.Formats.Nrbf.dll": {
             "assemblyVersion": "9.0.0.0",
             "fileVersion": "9.0.24.52809"
+          }
+        }
+      },
+      "System.IO.Ports/5.0.1": {
+        "dependencies": {
+          "runtime.native.System.IO.Ports": "5.0.1"
+        },
+        "runtime": {
+          "runtimes/linux/lib/netstandard2.0/System.IO.Ports.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.421.11614"
+          }
+        }
+      },
+      "System.Management/5.0.0": {
+        "dependencies": {
+          "System.CodeDom": "9.0.0"
+        },
+        "runtime": {
+          "lib/netstandard2.0/System.Management.dll": {
+            "assemblyVersion": "4.0.0.0",
+            "fileVersion": "5.0.20.51904"
           }
         }
       },
@@ -1972,6 +2041,28 @@
             "fileVersion": "9.0.24.52809"
           }
         }
+      },
+      "UnitsNet/5.31.0": {
+        "runtime": {
+          "lib/net7.0/UnitsNet.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.0.0"
+          }
+        },
+        "resources": {
+          "lib/net7.0/fr-CA/UnitsNet.resources.dll": {
+            "locale": "fr-CA"
+          },
+          "lib/net7.0/nb-NO/UnitsNet.resources.dll": {
+            "locale": "nb-NO"
+          },
+          "lib/net7.0/ru-RU/UnitsNet.resources.dll": {
+            "locale": "ru-RU"
+          },
+          "lib/net7.0/zh-CN/UnitsNet.resources.dll": {
+            "locale": "zh-CN"
+          }
+        }
       }
     }
   },
@@ -1997,6 +2088,13 @@
       "sha512": "sha512-lQKvtaTDOXnoVJ20ibTuSIOf2i0uO0MPbDhd1jm238I+U/2ZnRENj0cktKZhtchBMtCUSRQ5v4xBCUbKNmyVMw==",
       "path": "humanizer.core/2.14.1",
       "hashPath": "humanizer.core.2.14.1.nupkg.sha512"
+    },
+    "Iot.Device.Bindings/3.1.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-sYRUgAlLsHaRgeAhygd1YSTZE9g4/DEUpUt43h9DMPaoFKhqQ02kBRo6qnIc0/2R2dtoakGKEqa8kao5oywZjA==",
+      "path": "iot.device.bindings/3.1.0",
+      "hashPath": "iot.device.bindings.3.1.0.nupkg.sha512"
     },
     "Microsoft.Build/17.7.2": {
       "type": "package",
@@ -2131,6 +2229,13 @@
       "path": "microsoft.net.stringtools/17.14.28",
       "hashPath": "microsoft.net.stringtools.17.14.28.nupkg.sha512"
     },
+    "Microsoft.Win32.SystemEvents/6.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-hqTM5628jSsQiv+HGpiq3WKBl2c8v1KZfby2J6Pr7pEPlK9waPdgEO6b8A/+/xn/yZ9ulv8HuqK71ONy2tg67A==",
+      "path": "microsoft.win32.systemevents/6.0.0",
+      "hashPath": "microsoft.win32.systemevents.6.0.0.nupkg.sha512"
+    },
     "Mono.TextTemplating/3.0.0": {
       "type": "package",
       "serviceable": true,
@@ -2144,6 +2249,20 @@
       "sha512": "sha512-HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ==",
       "path": "newtonsoft.json/13.0.3",
       "hashPath": "newtonsoft.json.13.0.3.nupkg.sha512"
+    },
+    "runtime.linux-arm64.runtime.native.System.IO.Ports/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-2vSH+NumQa1hwccFfn+ISDQnkPcGviVd6is+TuM7HwcPkbE2WY64q1E6nAulm7E+62Loxx3b9bS2sSazjM6bfw==",
+      "path": "runtime.linux-arm64.runtime.native.system.io.ports/5.0.0",
+      "hashPath": "runtime.linux-arm64.runtime.native.system.io.ports.5.0.0.nupkg.sha512"
+    },
+    "runtime.native.System.IO.Ports/5.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ihV5cOJiQ1+IyxFtCZuQfW8C7KhUUTaGRCYt9y7g14Xt+LcqsMJ8Pb/ANr7OmTPCa7SKcvwKQVYcN8xKQB55pA==",
+      "path": "runtime.native.system.io.ports/5.0.1",
+      "hashPath": "runtime.native.system.io.ports.5.0.1.nupkg.sha512"
     },
     "SQLitePCLRaw.bundle_e_sqlite3/2.1.11": {
       "type": "package",
@@ -2229,12 +2348,19 @@
       "path": "system.configuration.configurationmanager/9.0.0",
       "hashPath": "system.configuration.configurationmanager.9.0.0.nupkg.sha512"
     },
-    "System.Device.Gpio/3.0.0": {
+    "System.Device.Gpio/3.1.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-tU+rRrRlAiFj7PKcrr1hjw9QSxBZ2B0w8Pse05nUi0M85p8kSkAJdJExqjd06iW4K15dNjLkR/RO1NMalCRq+Q==",
-      "path": "system.device.gpio/3.0.0",
-      "hashPath": "system.device.gpio.3.0.0.nupkg.sha512"
+      "sha512": "sha512-4Jw7+lTwdU63zsaD9a6H47YC/LK6lGhi3SKBGdf1jV0ySj22NJkglQ35dBZWbtwiXOzbBn3Gl8XzIcpv1pai3Q==",
+      "path": "system.device.gpio/3.1.0",
+      "hashPath": "system.device.gpio.3.1.0.nupkg.sha512"
+    },
+    "System.Drawing.Common/6.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-NfuoKUiP2nUWwKZN6twGqXioIe1zVD0RIj2t976A+czLHr2nY454RwwXs6JU9Htc6mwqL6Dn/nEL3dpVf2jOhg==",
+      "path": "system.drawing.common/6.0.0",
+      "hashPath": "system.drawing.common.6.0.0.nupkg.sha512"
     },
     "System.Formats.Nrbf/9.0.0": {
       "type": "package",
@@ -2242,6 +2368,20 @@
       "sha512": "sha512-F/6tNE+ckmdFeSQAyQo26bQOqfPFKEfZcuqnp4kBE6/7jP26diP+QTHCJJ6vpEfaY6bLy+hBLiIQUSxSmNwLkA==",
       "path": "system.formats.nrbf/9.0.0",
       "hashPath": "system.formats.nrbf.9.0.0.nupkg.sha512"
+    },
+    "System.IO.Ports/5.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-cOfs0q0+lmq8oXgIeYDzzT2IxQ0gIij2/awNDXn3OjykDii26EgzzY09BhabUlxt3rwGNpAOxYkdac5udWWJgQ==",
+      "path": "system.io.ports/5.0.1",
+      "hashPath": "system.io.ports.5.0.1.nupkg.sha512"
+    },
+    "System.Management/5.0.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-MF1CHaRcC+MLFdnDthv4/bKWBZnlnSpkGqa87pKukQefgEdwtb9zFW6zs0GjPp73qtpYYg4q6PEKbzJbxCpKfw==",
+      "path": "system.management/5.0.0",
+      "hashPath": "system.management.5.0.0.nupkg.sha512"
     },
     "System.Reflection.MetadataLoadContext/7.0.0": {
       "type": "package",
@@ -2277,6 +2417,13 @@
       "sha512": "sha512-U9msthvnH2Fsw7xwAvIhNHOdnIjOQTwOc8Vd0oGOsiRcGMGoBFlUD6qtYawRUoQdKH9ysxesZ9juFElt1Jw/7A==",
       "path": "system.windows.extensions/9.0.0",
       "hashPath": "system.windows.extensions.9.0.0.nupkg.sha512"
+    },
+    "UnitsNet/5.31.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-c+vDz+kkDFy6EZVqpypezp9u9c+ktwcuaPxu0ofVFsDoh85qUyQE8ICDoGr8nX6Ydui6hgN+SCPcIeBtXdp81g==",
+      "path": "unitsnet/5.31.0",
+      "hashPath": "unitsnet.5.31.0.nupkg.sha512"
     }
   },
   "runtimes": {

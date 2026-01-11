@@ -50,6 +50,10 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
+            "Iot.Device.Bindings": {
+              "target": "Package",
+              "version": "[3.1.0, )"
+            },
             "Microsoft.AspNetCore.App.Internal.Assets": {
               "suppressParent": "All",
               "target": "Package",
@@ -70,7 +74,7 @@
             },
             "System.Device.Gpio": {
               "target": "Package",
-              "version": "[3.0.0, )"
+              "version": "[3.1.0, )"
             }
           },
           "imports": [
