@@ -12,7 +12,7 @@ WorkingDirectory=/opt/terrarium
 Environment="ASPNETCORE_URLS=http://0.0.0.0:5000"
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 ExecStart=/opt/terrarium/run.sh
-ExecStartPost=/bin/sh -c 'sleep 2; mjpg_streamer -i "input_uvc.so -d /dev/video0 -f 15 -r 1280x720" -o "output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www" > /var/log/mjpg-streamer.log 2>&1 &'
+ExecStartPost=/bin/sh -c 'sleep 2; mkdir -p /opt/terrarium/logs; mjpg_streamer -i "input_uvc.so -d /dev/video0 -f 15 -r 1280x720" -o "output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www" > /opt/terrarium/logs/mjpg-streamer.log 2>&1 &'
 StandardOutput=journal
 StandardError=journal
 

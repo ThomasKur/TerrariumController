@@ -58,7 +58,9 @@ fi
 echo "Creating terrarium user and directories..."
 useradd -m -s /bin/bash terrarium || true
 mkdir -p /opt/terrarium
+mkdir -p /opt/terrarium/logs
 chown terrarium:terrarium /opt/terrarium
+chown terrarium:terrarium /opt/terrarium/logs
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
 echo "Creating app launcher script..."
