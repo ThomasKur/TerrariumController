@@ -100,11 +100,10 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
-# Create camera runner script (uses rpicam-vid + ffmpeg for MJPEG over HTTP)
+# Create camera runner script using socat for connection multiplexing
 echo "Creating camera runner script..."
 cat > /opt/terrarium/camera.sh << 'EOF'
 #!/bin/bash
-set -e
 
 mkdir -p /opt/terrarium/logs
 
@@ -112,16 +111,13 @@ WIDTH=${CAMERA_WIDTH:-640}
 HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
 
-while true; do
-    rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null \
-    | ffmpeg -hide_banner -loglevel warning -nostdin \
-            -f mjpeg -i - \
-            -f mpjpeg -boundary_tag frame -muxdelay 0 -listen 1 http://0.0.0.0:8080/stream.mjpg \
-            >> /opt/terrarium/logs/camera-stream.log 2>&1
-
-    echo "camera pipeline exited, restarting in 1s" >> /opt/terrarium/logs/camera-stream.log
-    sleep 1
-done
+# Run rpicam-vid → ffmpeg (output to TCP) → socat (multiplex to multiple clients)
+exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null | \
+ffmpeg -hide_banner -loglevel error -nostdin \
+    -f mjpeg -i - \
+    -f mpjpeg -muxdelay 0 - 2>/dev/null | \
+socat - TCP-LISTEN:8080,reuseaddr,fork \
+    >> /opt/terrarium/logs/camera-stream.log 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
 chmod +x /opt/terrarium/camera.sh
@@ -139,7 +135,7 @@ fi
 
 # Install camera streaming tools
 echo "Installing libcamera tools and ffmpeg..."
-if ! apt install -y libcamera-tools libcamera-apps ffmpeg; then
+if ! apt install -y libcamera-tools libcamera-apps ffmpeg socat; then
     echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
 fi
 
