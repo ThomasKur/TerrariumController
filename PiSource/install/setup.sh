@@ -46,19 +46,21 @@ CURRENT_TIME=$(date +%s)
 LAST_UPDATE_TIME=0
 
 if [ -f "$LAST_UPDATE_FILE" ]; then
-    LAST_UPDATE_TIME=$(stat -f "%m" "$LAST_UPDATE_FILE" 2>/dev/null || stat -c "%Y" "$LAST_UPDATE_FILE" 2>/dev/null || echo 0)
+    # Prefer GNU stat on Linux; fall back to GNU date if needed
+    LAST_UPDATE_TIME=$(stat -c "%Y" "$LAST_UPDATE_FILE" 2>/dev/null || date -r "$LAST_UPDATE_FILE" +%s 2>/dev/null || echo 0)
 fi
 
-SECONDS_SINCE_UPDATE=$((CURRENT_TIME - LAST_UPDATE_TIME))
 SECONDS_PER_DAY=86400
+SECONDS_SINCE_UPDATE=$((CURRENT_TIME - LAST_UPDATE_TIME))
 
-if [ $SECONDS_SINCE_UPDATE -ge $SECONDS_PER_DAY ]; then
+if [ "$LAST_UPDATE_TIME" -eq 0 ] || [ "$SECONDS_SINCE_UPDATE" -ge "$SECONDS_PER_DAY" ]; then
     echo "Running system package update..."
     apt update
     apt upgrade -y
+    # Mark last update time (ignore errors if apt manages this file)
     touch "$LAST_UPDATE_FILE" 2>/dev/null || true
 else
-    HOURS_UNTIL_NEXT=$((($SECONDS_PER_DAY - $SECONDS_SINCE_UPDATE) / 3600))
+    HOURS_UNTIL_NEXT=$(( (SECONDS_PER_DAY - SECONDS_SINCE_UPDATE) / 3600 ))
     echo "System was updated less than 24 hours ago (next update in ~${HOURS_UNTIL_NEXT}h), skipping..."
 fi
 
