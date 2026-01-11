@@ -71,11 +71,12 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
     if (ctx.Request.Query.ContainsKey("w")) int.TryParse(ctx.Request.Query["w"], out width);
     if (ctx.Request.Query.ContainsKey("h")) int.TryParse(ctx.Request.Query["h"], out height);
 
+    var tempFile = Path.Combine(Path.GetTempPath(), $"snapshot_{Guid.NewGuid()}.jpg");
+
     var psi = new ProcessStartInfo
     {
         FileName = "rpicam-still",
-        ArgumentList = { "-n", "--width", width.ToString(), "--height", height.ToString(), "-o", "-" },
-        RedirectStandardOutput = true,
+        ArgumentList = { "-n", "--width", width.ToString(), "--height", height.ToString(), "-o", tempFile, "-t", "1000" },
         RedirectStandardError = true,
         UseShellExecute = false,
         CreateNoWindow = true
@@ -92,13 +93,21 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
         }
 
         using var cts = new CancellationTokenSource(timeoutMs);
-        // Read JPEG bytes from stdout (rpicam-still writes the image to stdout)
-        using var ms = new MemoryStream();
-        await proc.StandardOutput.BaseStream.CopyToAsync(ms, cts.Token);
         await proc.WaitForExitAsync(cts.Token);
-        var bytes = ms.ToArray();
+
+        if (!File.Exists(tempFile))
+        {
+            ctx.Response.StatusCode = 500;
+            await ctx.Response.WriteAsync("Camera failed to capture image");
+            return;
+        }
+
+        var bytes = await File.ReadAllBytesAsync(tempFile, cts.Token);
         ctx.Response.ContentType = "image/jpeg";
         await ctx.Response.Body.WriteAsync(bytes);
+        
+        // Clean up temp file
+        try { File.Delete(tempFile); } catch { }
     }
     catch (OperationCanceledException)
     {
