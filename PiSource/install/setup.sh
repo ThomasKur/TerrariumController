@@ -144,7 +144,14 @@ if [ "$MJPG_INSTALLED" = true ]; then
     if command -v mjpg_streamer >/dev/null 2>&1; then
         echo -e "${GREEN}mjpg-streamer installed at $(command -v mjpg_streamer)${NC}"
         echo "Test command (adjust -i args for your camera):"
-        echo "  mjpg_streamer -i 'input_uvc.so -f 15 -r 1280x720' -o 'output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www'"
+        echo "  mjpg_streamer -i 'input_uvc.so -d /dev/video0 -y -f 15 -r 640x480' -o 'output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www'"
+
+        # Install v4l utilities to inspect camera capabilities
+        apt install -y v4l-utils || echo -e "${YELLOW}v4l-utils not available; skipping capability listing${NC}"
+        if command -v v4l2-ctl >/dev/null 2>&1; then
+            echo "Camera capabilities (formats/resolutions):"
+            v4l2-ctl -d /dev/video0 --list-formats-ext || true
+        fi
     else
         echo -e "${YELLOW}mjpg-streamer build completed but binary not found in PATH${NC}"
     fi

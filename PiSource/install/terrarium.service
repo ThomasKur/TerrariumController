@@ -11,8 +11,11 @@ User=terrarium
 WorkingDirectory=/opt/terrarium
 Environment="ASPNETCORE_URLS=http://0.0.0.0:5000"
 Environment="ASPNETCORE_ENVIRONMENT=Production"
+Environment="CAMERA_DEVICE=/dev/video0"
+Environment="CAMERA_RES=640x480"
+Environment="CAMERA_FPS=15"
 ExecStart=/opt/terrarium/run.sh
-ExecStartPost=/bin/sh -c 'sleep 2; mkdir -p /opt/terrarium/logs; mjpg_streamer -i "input_raspicam.so -fps 15 -w 1280 -h 720" -o "output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www" > /opt/terrarium/logs/mjpg-streamer.log 2>&1 &'
+ExecStartPost=/bin/sh -c 'sleep 2; mkdir -p /opt/terrarium/logs; mjpg_streamer -i "input_uvc.so -d ${CAMERA_DEVICE:-/dev/video0} -y -f ${CAMERA_FPS:-15} -r ${CAMERA_RES:-640x480}" -o "output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www" > /opt/terrarium/logs/mjpg-streamer.log 2>&1 &'
 StandardOutput=journal
 StandardError=journal
 
