@@ -39,10 +39,28 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Update system
-echo "Updating system packages..."
-apt update
-apt upgrade -y
+# Update system (once per day)
+echo "Checking system packages..."
+LAST_UPDATE_FILE="/var/lib/apt/periodic/update-success-timestamp"
+CURRENT_TIME=$(date +%s)
+LAST_UPDATE_TIME=0
+
+if [ -f "$LAST_UPDATE_FILE" ]; then
+    LAST_UPDATE_TIME=$(stat -f "%m" "$LAST_UPDATE_FILE" 2>/dev/null || stat -c "%Y" "$LAST_UPDATE_FILE" 2>/dev/null || echo 0)
+fi
+
+SECONDS_SINCE_UPDATE=$((CURRENT_TIME - LAST_UPDATE_TIME))
+SECONDS_PER_DAY=86400
+
+if [ $SECONDS_SINCE_UPDATE -ge $SECONDS_PER_DAY ]; then
+    echo "Running system package update..."
+    apt update
+    apt upgrade -y
+    touch "$LAST_UPDATE_FILE" 2>/dev/null || true
+else
+    HOURS_UNTIL_NEXT=$((($SECONDS_PER_DAY - $SECONDS_SINCE_UPDATE) / 3600))
+    echo "System was updated less than 24 hours ago (next update in ~${HOURS_UNTIL_NEXT}h), skipping..."
+fi
 
 # Stop existing service if present to avoid conflicts during redeploy
 if systemctl list-unit-files | grep -q '^terrarium.service'; then
