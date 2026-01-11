@@ -111,56 +111,27 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
     echo -e "${YELLOW}Warning: Python GPIO bindings not available (optional)${NC}"
 fi
 
-# Install mjpg-streamer for camera streaming
-echo "Installing mjpg-streamer..."
-
-MJPG_SRC_DIR="/opt/mjpg-streamer-src"
-MJPG_BUILD_DIR="$MJPG_SRC_DIR/mjpg-streamer-experimental"
-MJPG_INSTALLED=false
-
-if apt install -y mjpg-streamer; then
-    MJPG_INSTALLED=true
-else
-    echo -e "${YELLOW}apt package mjpg-streamer not available; building from source...${NC}"
-    apt install -y git build-essential cmake libjpeg62-turbo-dev libv4l-dev imagemagick || echo -e "${YELLOW}Some build dependencies failed to install${NC}"
-
-    if [ ! -d "$MJPG_SRC_DIR" ]; then
-        git clone --depth 1 https://github.com/jacksonliam/mjpg-streamer.git "$MJPG_SRC_DIR" || echo -e "${YELLOW}Clone failed${NC}"
-    else
-        git -C "$MJPG_SRC_DIR" pull --ff-only || echo -e "${YELLOW}Git pull failed, continuing with existing source${NC}"
-    fi
-
-    if [ -d "$MJPG_BUILD_DIR" ]; then
-        (cd "$MJPG_BUILD_DIR" && make clean || true)
-        if (cd "$MJPG_BUILD_DIR" && make && make install); then
-            MJPG_INSTALLED=true
-        else
-            echo -e "${YELLOW}mjpg-streamer build failed${NC}"
-        fi
-    else
-        echo -e "${YELLOW}mjpg-streamer source directory missing after clone${NC}"
-    fi
+# Install camera streaming tools
+echo "Installing libcamera tools..."
+if ! apt install -y libcamera-tools libcamera-apps; then
+    echo -e "${YELLOW}Warning: libcamera-tools installation failed${NC}"
 fi
 
-if [ "$MJPG_INSTALLED" = true ]; then
-    if command -v mjpg_streamer >/dev/null 2>&1; then
-        echo -e "${GREEN}mjpg-streamer installed at $(command -v mjpg_streamer)${NC}"
-        echo "Test command (adjust -i args for your camera):"
-        echo "  mjpg_streamer -i 'input_uvc.so -d /dev/video0 -y -f 15 -r 640x480' -o 'output_http.so -p 8080 -w /usr/local/share/mjpg-streamer/www'"
-
-        # Install v4l utilities to inspect camera capabilities
-        apt install -y v4l-utils || echo -e "${YELLOW}v4l-utils not available; skipping capability listing${NC}"
-        if command -v v4l2-ctl >/dev/null 2>&1; then
-            echo "Camera capabilities (formats/resolutions):"
-            v4l2-ctl -d /dev/video0 --list-formats-ext || true
-        fi
+# Verify camera is accessible
+if [ -c /dev/video0 ]; then
+    echo -e "${GREEN}Camera device /dev/video0 detected${NC}"
+    # Test if camera works with libcamera
+    if timeout 3 libcamera-hello --list-cameras 2>/dev/null | grep -q Camera; then
+        echo -e "${GREEN}libcamera found and camera is accessible${NC}"
     else
-        echo -e "${YELLOW}mjpg-streamer build completed but binary not found in PATH${NC}"
+        echo -e "${YELLOW}Warning: libcamera test inconclusive; verify with: libcamera-hello --list-cameras${NC}"
     fi
 else
-    echo -e "${YELLOW}mjpg-streamer could not be installed automatically${NC}"
-    echo "Check build logs above or install manually from source."
+    echo -e "${YELLOW}Warning: Camera device /dev/video0 not found${NC}"
 fi
+
+echo "Test command to verify camera stream:"
+echo "  libcamera-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg"
 
 # Copy systemd service unit
 echo "Installing systemd service..."
