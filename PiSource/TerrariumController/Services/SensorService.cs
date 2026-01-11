@@ -128,7 +128,8 @@ namespace TerrariumController.Services
                         return (tempC, humPct);
                     }
 
-                    await Task.Delay(500);
+                    // Datasheet recommends at least 2 seconds between reads
+                    await Task.Delay(2000);
                 }
 
                 _logger.LogWarning("DHT22 sensor {SensorId} read failed after retries on GPIO {GpioPin}", sensorId, gpioPin);

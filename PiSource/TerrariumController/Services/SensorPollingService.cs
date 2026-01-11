@@ -22,6 +22,9 @@ namespace TerrariumController.Services
         {
             _logger.LogInformation("Sensor polling service starting");
 
+            // Warm-up: give sensors a moment after boot before first read
+            try { await Task.Delay(TimeSpan.FromSeconds(3), stoppingToken); } catch { }
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
