@@ -100,6 +100,32 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
+# Create camera runner script (uses rpicam-vid + ffmpeg for MJPEG over HTTP)
+echo "Creating camera runner script..."
+cat > /opt/terrarium/camera.sh << 'EOF'
+#!/bin/bash
+set -e
+
+mkdir -p /opt/terrarium/logs
+
+WIDTH=${CAMERA_WIDTH:-640}
+HEIGHT=${CAMERA_HEIGHT:-480}
+FPS=${CAMERA_FPS:-15}
+
+while true; do
+    rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - \
+    | ffmpeg -hide_banner -loglevel error -nostdin \
+            -f mjpeg -i - \
+            -f mpjpeg -boundary_tag frame -muxdelay 0 -listen 1 http://0.0.0.0:8080/stream.mjpg \
+            >> /opt/terrarium/logs/camera-stream.log 2>&1
+
+    echo "camera pipeline exited, restarting in 1s" >> /opt/terrarium/logs/camera-stream.log
+    sleep 1
+done
+EOF
+chown terrarium:terrarium /opt/terrarium/camera.sh
+chmod +x /opt/terrarium/camera.sh
+
 # Install GPIO dependencies
 echo "Installing GPIO dependencies..."
 # Try multiple GPIO library options for compatibility
