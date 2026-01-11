@@ -80,7 +80,7 @@
                 <span class="label">Live Feed</span>
             </div>
             <div class="camera-frame">
-                <video id="camera-feed" autoplay muted playsinline style="width: 100%; height: auto; background: #0b1018;"></video>
+                <img id="camera-feed" alt="Camera" style="display:block;width:100%;height:auto;background:#0b1018;" />
             </div>
         </div>
     </section>
@@ -306,9 +306,7 @@
     {
         if (firstRender)
         {
-            var uri = new Uri(NavigationManager.Uri);
-            var cameraUrl = $"http://{uri.Host}:8080/stream.mjpg";
-            await JS.InvokeVoidAsync("setCameraSource", cameraUrl);
+            await JS.InvokeVoidAsync("startCameraSnapshot", "/camera/snapshot.jpg");
         }
         await base.OnAfterRenderAsync(firstRender);
     }

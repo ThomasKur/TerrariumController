@@ -3,6 +3,7 @@ using TerrariumController.Data;
 using TerrariumController.Services;
 using TerrariumController.Hubs;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -59,6 +60,56 @@ app.UseAntiforgery();
 app.MapHub<SensorHub>("/sensorHub");
 
 app.MapStaticAssets();
+
+// Snapshot camera endpoint: returns a single JPEG captured via rpicam-still
+app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
+{
+    int width = int.TryParse(Environment.GetEnvironmentVariable("CAMERA_WIDTH"), out var w) ? w : 640;
+    int height = int.TryParse(Environment.GetEnvironmentVariable("CAMERA_HEIGHT"), out var h) ? h : 480;
+    int timeoutMs = 4000;
+
+    if (ctx.Request.Query.ContainsKey("w")) int.TryParse(ctx.Request.Query["w"], out width);
+    if (ctx.Request.Query.ContainsKey("h")) int.TryParse(ctx.Request.Query["h"], out height);
+
+    var psi = new ProcessStartInfo
+    {
+        FileName = "rpicam-still",
+        ArgumentList = { "-n", "--width", width.ToString(), "--height", height.ToString(), "-o", "-" },
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false,
+        CreateNoWindow = true
+    };
+
+    try
+    {
+        using var proc = Process.Start(psi);
+        if (proc == null)
+        {
+            ctx.Response.StatusCode = 500;
+            await ctx.Response.WriteAsync("Failed to start rpicam-still");
+            return;
+        }
+
+        using var cts = new CancellationTokenSource(timeoutMs);
+        // Read JPEG bytes from stdout (rpicam-still writes the image to stdout)
+        using var ms = new MemoryStream();
+        await proc.StandardOutput.BaseStream.CopyToAsync(ms, cts.Token);
+        var bytes = ms.ToArray();
+        ctx.Response.ContentType = "image/jpeg";
+        await ctx.Response.Body.WriteAsync(bytes);
+    }
+    catch (OperationCanceledException)
+    {
+        ctx.Response.StatusCode = 504;
+        await ctx.Response.WriteAsync("Camera snapshot timeout");
+    }
+    catch (Exception ex)
+    {
+        ctx.Response.StatusCode = 500;
+        await ctx.Response.WriteAsync($"Camera error: {ex.Message}");
+    }
+});
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
