@@ -3,6 +3,7 @@
 @using TerrariumController.Models
 @rendermode InteractiveServer
 @inject ISettingsService SettingsService
+@inject ILoggingService LoggingService
 @inject NavigationManager NavigationManager
 @inject ILogger<SettingsPage> Logger
 
@@ -191,6 +192,73 @@
                 <button @onclick="CompactDatabase" class="btn-compact">Compact Database</button>
             </section>
 
+            <!-- Recent Logs -->
+            <section class="settings-section">
+                <h2>Recent Logs</h2>
+                <div class="log-controls">
+                    <label>
+                        Filter:
+                        <select @onchange="OnLogFilterChanged">
+                            <option value="">All Logs</option>
+                            <option value="StateChange">State Changes</option>
+                            <option value="HourlySnapshot">Hourly Snapshots</option>
+                        </select>
+                    </label>
+                    <button @onclick="RefreshLogs" class="btn-refresh">↻ Refresh</button>
+                </div>
+                @if (RecentLogs == null)
+                {
+                    <p>Loading logs...</p>
+                }
+                else if (RecentLogs.Count == 0)
+                {
+                    <p class="no-logs">No logs found.</p>
+                }
+                else
+                {
+                    <div class="logs-table-container">
+                        <table class="logs-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Type</th>
+                                    <th>Details</th>
+                                    <th>Sensor Data</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var log in RecentLogs)
+                                {
+                                    <tr class="@(log.LogType == "StateChange" ? "log-state-change" : "log-snapshot")">
+                                        <td class="log-time">@log.Timestamp.ToString("MM/dd HH:mm:ss")</td>
+                                        <td class="log-type">@log.LogType</td>
+                                        <td class="log-details">@log.Details</td>
+                                        <td class="log-sensors">
+                                            @if (log.Sensor1Temperature.HasValue)
+                                            {
+                                                <span>S1: @log.Sensor1Temperature.Value.ToString("F1")°C/@log.Sensor1Humidity?.ToString("F0")%</span>
+                                            }
+                                            @if (log.Sensor2Temperature.HasValue)
+                                            {
+                                                <span>S2: @log.Sensor2Temperature.Value.ToString("F1")°C/@log.Sensor2Humidity?.ToString("F0")%</span>
+                                            }
+                                            @if (log.Sensor3Temperature.HasValue)
+                                            {
+                                                <span>S3: @log.Sensor3Temperature.Value.ToString("F1")°C/@log.Sensor3Humidity?.ToString("F0")%</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="log-footer">
+                        Showing @RecentLogs.Count most recent logs
+                        <a href="/logs" class="link-full-history">View Full History →</a>
+                    </div>
+                }
+            </section>
+
             <!-- Action Buttons -->
             <div class="button-group">
                 <button @onclick="SaveSettings" class="btn-save">Save Settings</button>
@@ -305,11 +373,140 @@
     .btn-cancel:hover {
         background-color: #5a6268;
     }
+
+    .log-controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .log-controls label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .log-controls select {
+        padding: 0.4rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .btn-refresh {
+        padding: 0.4rem 1rem;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+
+    .btn-refresh:hover {
+        background-color: #0056b3;
+    }
+
+    .logs-table-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .logs-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    .logs-table thead {
+        position: sticky;
+        top: 0;
+        background: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .logs-table th {
+        padding: 0.5rem;
+        text-align: left;
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .logs-table td {
+        padding: 0.5rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .log-state-change {
+        background-color: #fff3cd;
+    }
+
+    .log-snapshot {
+        background-color: #ffffff;
+    }
+
+    .log-time {
+        white-space: nowrap;
+        font-family: monospace;
+        color: #666;
+    }
+
+    .log-type {
+        font-weight: 500;
+        color: #007bff;
+    }
+
+    .log-details {
+        color: #333;
+    }
+
+    .log-sensors {
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    .log-sensors span {
+        display: inline-block;
+        margin-right: 0.5rem;
+        white-space: nowrap;
+    }
+
+    .log-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #ddd;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .link-full-history {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .link-full-history:hover {
+        text-decoration: underline;
+    }
+
+    .no-logs {
+        color: #999;
+        font-style: italic;
+        text-align: center;
+        padding: 2rem;
+    }
 </style>
 
 @code {
     private Models.Settings CurrentSettings = null!;
     private long DbSize = 0;
+    private List<LogEntry> RecentLogs = null!;
+    private string LogFilter = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -317,6 +514,7 @@
         {
             CurrentSettings = await SettingsService.GetSettingsAsync();
             await RefreshDatabaseSize();
+            await RefreshLogs();
         }
         catch (Exception ex)
         {
@@ -355,6 +553,31 @@
         {
             Logger.LogError(ex, "Error compacting database");
         }
+    }
+
+    private async Task RefreshLogs()
+    {
+        try
+        {
+            RecentLogs = await LoggingService.GetLogEntriesAsync(1, 50);
+            
+            // Apply filter if specified
+            if (!string.IsNullOrEmpty(LogFilter))
+            {
+                RecentLogs = RecentLogs.Where(log => log.LogType == LogFilter).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading logs");
+            RecentLogs = new List<LogEntry>();
+        }
+    }
+
+    private async Task OnLogFilterChanged(ChangeEventArgs e)
+    {
+        LogFilter = e.Value?.ToString() ?? "";
+        await RefreshLogs();
     }
 
     private void Cancel()

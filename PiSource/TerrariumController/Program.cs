@@ -85,7 +85,10 @@ app.MapGet("/camera/snapshot.jpg", async (HttpContext ctx) =>
     };
     using (var killProc = Process.Start(killPsi))
     {
-        await killProc.WaitForExitAsync();
+        if (killProc != null)
+        {
+            await killProc.WaitForExitAsync();
+        }
     }
 
     var shellCmd = $"rpicam-still -n --width {width} --height {height} -o {tempFile} -t 2000 >> {logFile} 2>&1; echo $? >> {logFile}";

@@ -19,7 +19,6 @@ namespace TerrariumController.Services
         private readonly AppDbContext _context;
         private readonly ILogger<SensorService> _logger;
         private readonly ISettingsService _settingsService;
-        private static GpioController? _gpioController;
 
         // Last successful readings for fallback
         private static readonly Dictionary<int, SensorReading> LastValidReadings = new();
