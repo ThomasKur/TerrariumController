@@ -114,6 +114,8 @@ namespace TerrariumController.Services
         {
             try
             {
+                _logger.LogInformation("Reading DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}", sensorId, gpioPin);
+                
                 // Use BCM (logical) numbering; Settings use BCM pin numbers
                 using var dht = new Dht22(gpioPin, PinNumberingScheme.Logical);
 
@@ -124,7 +126,7 @@ namespace TerrariumController.Services
                     {
                         double tempC = temperature.DegreesCelsius;
                         double humPct = humidity.Percent;
-                        _logger.LogInformation("DHT22 Sensor {SensorId}: T={Temperature:F1}°C, RH={Humidity:F1}% (attempt {Attempt})", sensorId, tempC, humPct, attempt);
+                        _logger.LogInformation("DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}: T={Temperature:F1}°C, RH={Humidity:F1}% (attempt {Attempt})", sensorId, gpioPin, tempC, humPct, attempt);
                         return (tempC, humPct);
                     }
 
@@ -132,12 +134,12 @@ namespace TerrariumController.Services
                     await Task.Delay(2000);
                 }
 
-                _logger.LogWarning("DHT22 sensor {SensorId} read failed after retries on GPIO {GpioPin}", sensorId, gpioPin);
+                _logger.LogWarning("DHT22 sensor {SensorId} on BCM GPIO {GpioPin} read failed after retries", sensorId, gpioPin);
                 return (null, null);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error communicating with DHT22 on GPIO {GpioPin}", gpioPin);
+                _logger.LogError(ex, "Error communicating with DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}", sensorId, gpioPin);
                 return (null, null);
             }
         }
