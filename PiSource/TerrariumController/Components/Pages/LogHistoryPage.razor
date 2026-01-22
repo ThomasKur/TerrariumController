@@ -61,12 +61,12 @@
                         <td class="timestamp">@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td class="type">@log.LogType</td>
                         <td class="details">@log.Details</td>
-                        <td>@(log.Sensor1Temperature?.ToString("F1") ?? "-")</td>
-                        <td>@(log.Sensor1Humidity?.ToString("F0") ?? "-")%</td>
-                        <td>@(log.Sensor2Temperature?.ToString("F1") ?? "-")</td>
-                        <td>@(log.Sensor2Humidity?.ToString("F0") ?? "-")%</td>
-                        <td>@(log.Sensor3Temperature?.ToString("F1") ?? "-")</td>
-                        <td>@(log.Sensor3Humidity?.ToString("F0") ?? "-")%</td>
+                        <td class="detailsData">@(log.Sensor1Temperature?.ToString("F1") ?? "-")</td>
+                        <td class="detailsData">@(log.Sensor1Humidity?.ToString("F0") ?? "-")%</td>
+                        <td class="detailsData">@(log.Sensor2Temperature?.ToString("F1") ?? "-")</td>
+                        <td class="detailsData">@(log.Sensor2Humidity?.ToString("F0") ?? "-")%</td>
+                        <td class="detailsData">@(log.Sensor3Temperature?.ToString("F1") ?? "-")</td>
+                        <td class="detailsData">@(log.Sensor3Humidity?.ToString("F0") ?? "-")%</td>
                     </tr>
                 }
             </tbody>
