@@ -4,6 +4,8 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TerrariumController", "TerrariumController\TerrariumController.csproj", "{DA58190C-7B22-5FB1-E84B-8E124427AA20}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TerrariumController.Tests", "TerrariumController.Tests\TerrariumController.Tests.csproj", "{7F6D244F-DF8D-4B8E-B9DE-B8F5CA6CF9A6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +16,10 @@ Global
 		{DA58190C-7B22-5FB1-E84B-8E124427AA20}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DA58190C-7B22-5FB1-E84B-8E124427AA20}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DA58190C-7B22-5FB1-E84B-8E124427AA20}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F6D244F-DF8D-4B8E-B9DE-B8F5CA6CF9A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F6D244F-DF8D-4B8E-B9DE-B8F5CA6CF9A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F6D244F-DF8D-4B8E-B9DE-B8F5CA6CF9A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F6D244F-DF8D-4B8E-B9DE-B8F5CA6CF9A6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

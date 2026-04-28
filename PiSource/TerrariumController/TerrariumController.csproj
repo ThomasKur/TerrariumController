@@ -15,4 +15,9 @@
     <PackageReference Include="Iot.Device.Bindings" Version="3.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <RazorComponent Remove="Components\Pages\Weather.razor" />
+    <None Include="Components\Pages\Weather.razor" />
+  </ItemGroup>
+
 </Project>

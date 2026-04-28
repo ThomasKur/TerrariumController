@@ -3,9 +3,8 @@
 @using TerrariumController.Models
 @rendermode InteractiveServer
 @inject ISensorService SensorService
-@inject IRelayService RelayService
 @inject ISettingsService SettingsService
-@inject NavigationManager NavigationManager
+@inject ILogger<Home> Logger
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -21,13 +20,13 @@
         <div class="hero-meta">
             <div class="meta-item">
                 <span class="meta-label">Last Updated</span>
-                <span class="meta-value">@DateTime.Now.ToLocalTime().ToString("HH:mm:ss")</span>
+                <span class="meta-value">@CurrentTime.ToString("HH:mm:ss")</span>
             </div>
             <div class="meta-item">
                 <span class="meta-label">Hysteresis</span>
                 <span class="meta-value">@CurrentSettings?.TemperatureHysteresis.ToString("F1")°C</span>
             </div>
-            <a href="/settings" class="settings-link">
+            <a href="/settings" class="settings-link" aria-label="Open settings page">
                 <span class="settings-icon">⚙️</span>
                 <span>Settings</span>
             </a>
@@ -35,28 +34,44 @@
     </header>
 
     <section class="sensor-grid">
-        @foreach (var reading in CurrentReadings.OrderBy(r => r.SensorId))
+        @if (IsLoadingSensors)
         {
-            <div class="card sensor-card">
-                <div class="card-header">
-                    <span class="pill">Sensor @reading.SensorId</span>
-                    <span class="label">@reading.Label</span>
-                </div>
-                <div class="metrics">
-                    <div class="metric">
-                        <div class="metric-value">@(reading.Temperature?.ToString("F1") ?? "--")°C</div>
-                        <div class="metric-label">Temperature</div>
-                    </div>
-                    <div class="metric">
-                        <div class="metric-value">@(reading.Humidity?.ToString("F0") ?? "--")%</div>
-                        <div class="metric-label">Humidity</div>
-                    </div>
-                </div>
-                <div class="threshold">
-                    <label>Threshold (@GetThreshold(reading.SensorId)°C)</label>
-                    <input type="range" min="15" max="35" step="0.1" value="@GetThreshold(reading.SensorId)" @onchange="@((ChangeEventArgs e) => UpdateThreshold(reading.SensorId, double.Parse(e.Value?.ToString() ?? "29")))" />
-                </div>
+            <div class="card status-card">
+                <span>Loading sensors...</span>
             </div>
+        }
+        else
+        {
+            @if (!string.IsNullOrWhiteSpace(SensorLoadError))
+            {
+                <div class="card status-card warning" role="status" aria-live="polite">
+                    <span>@SensorLoadError</span>
+                </div>
+            }
+
+            @foreach (var reading in CurrentReadings.OrderBy(r => r.SensorId))
+            {
+                <div class="card sensor-card">
+                    <div class="card-header">
+                        <span class="pill">Sensor @reading.SensorId</span>
+                        <span class="label">@reading.Label</span>
+                    </div>
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="metric-value">@(reading.Temperature?.ToString("F1") ?? "--")°C</div>
+                            <div class="metric-label">Temperature</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">@(reading.Humidity?.ToString("F0") ?? "--")%</div>
+                            <div class="metric-label">Humidity</div>
+                        </div>
+                    </div>
+                    <div class="threshold">
+                        <label>Threshold (@GetThreshold(reading.SensorId)°C)</label>
+                        <input type="range" min="15" max="35" step="0.1" value="@GetThreshold(reading.SensorId)" @onchange="@((ChangeEventArgs e) => UpdateThreshold(reading.SensorId, double.Parse(e.Value?.ToString() ?? "29")))" />
+                    </div>
+                </div>
+            }
         }
     </section>
 
@@ -179,6 +194,18 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 14px;
+    }
+
+    .status-card {
+        display: flex;
+        align-items: center;
+        min-height: 84px;
+    }
+
+    .status-card.warning {
+        border-color: rgba(255, 204, 102, 0.55);
+        background: linear-gradient(160deg, rgba(62, 45, 18, 0.7), rgba(34, 28, 14, 0.85));
+        color: #ffd88a;
     }
 
     .card {
@@ -322,52 +349,96 @@
     private List<SensorReadingModel> CurrentReadings = new();
     private string OnTime = "08:00";
     private string OffTime = "20:00";
+    private DateTime CurrentTime = DateTime.Now;
+    private bool IsLoadingSensors = true;
+    private string? SensorLoadError;
     private Settings? CurrentSettings;
     private CancellationTokenSource? _refreshCts;
     private Task? _clockTask;
     private Task? _sensorRefreshTask;
+    private bool _backgroundTasksStarted;
+    private bool _isDisposed;
+
+    [Parameter]
+    public TimeSpan ClockRefreshInterval { get; set; } = TimeSpan.FromSeconds(1);
+
+    [Parameter]
+    public TimeSpan SensorRefreshInterval { get; set; } = TimeSpan.FromSeconds(10);
 
     protected override async Task OnInitializedAsync()
     {
         CurrentSettings = await SettingsService.GetSettingsAsync();
         OnTime = CurrentSettings.Relay4OnTime;
         OffTime = CurrentSettings.Relay4OffTime;
-        await RefreshReadings();
+        await RefreshReadings(isInitialLoad: true);
+
+        StartBackgroundTasks();
+    }
+
+    private void StartBackgroundTasks()
+    {
+        if (_backgroundTasksStarted)
+        {
+            return;
+        }
 
         _refreshCts = new CancellationTokenSource();
         _clockTask = RunClockAsync(_refreshCts.Token);
         _sensorRefreshTask = RunSensorRefreshAsync(_refreshCts.Token);
+        _backgroundTasksStarted = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender)
+        if (firstRender && !_isDisposed)
         {
             await JS.InvokeVoidAsync("startCameraSnapshot", "/camera/snapshot.jpg");
         }
         await base.OnAfterRenderAsync(firstRender);
     }
 
-    private async Task RefreshReadings()
+    private async Task RefreshReadings(bool isInitialLoad = false)
     {
-        var readings = await SensorService.GetLatestReadingsAsync();
-        CurrentReadings = readings.Select(r => new SensorReadingModel
+        try
         {
-            SensorId = r.SensorId,
-            Label = r.Label ?? $"Sensor {r.SensorId}",
-            Temperature = r.Temperature,
-            Humidity = r.Humidity,
-            IsValid = r.IsValid
-        }).ToList();
+            var readings = await SensorService.GetLatestReadingsAsync();
+            CurrentReadings = readings.Select(r => new SensorReadingModel
+            {
+                SensorId = r.SensorId,
+                Label = r.Label ?? $"Sensor {r.SensorId}",
+                Temperature = r.Temperature,
+                Humidity = r.Humidity,
+                IsValid = r.IsValid
+            }).ToList();
+
+            SensorLoadError = null;
+        }
+        catch (Exception ex)
+        {
+            SensorLoadError = "Sensor data unavailable. Showing last known values.";
+            Logger.LogWarning(ex, "Unable to refresh sensor readings for home page");
+        }
+        finally
+        {
+            if (isInitialLoad)
+            {
+                IsLoadingSensors = false;
+            }
+        }
     }
 
     private async Task RunClockAsync(CancellationToken cancellationToken)
     {
+        var interval = ClockRefreshInterval > TimeSpan.Zero
+            ? ClockRefreshInterval
+            : TimeSpan.FromSeconds(1);
+
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            using var timer = new PeriodicTimer(interval);
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
+                CurrentTime = DateTime.Now;
                 await InvokeAsync(StateHasChanged);
             }
         }
@@ -378,9 +449,13 @@
 
     private async Task RunSensorRefreshAsync(CancellationToken cancellationToken)
     {
+        var interval = SensorRefreshInterval > TimeSpan.Zero
+            ? SensorRefreshInterval
+            : TimeSpan.FromSeconds(10);
+
         try
         {
-            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+            using var timer = new PeriodicTimer(interval);
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
                 await RefreshReadings();
@@ -436,12 +511,21 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_refreshCts == null)
+        if (_isDisposed)
         {
             return;
         }
 
-        _refreshCts.Cancel();
+        _isDisposed = true;
+
+        var refreshCts = _refreshCts;
+        if (refreshCts == null)
+        {
+            return;
+        }
+
+        _refreshCts = null;
+        refreshCts.Cancel();
 
         var tasks = new[] { _clockTask, _sensorRefreshTask }
             .Where(task => task != null)
@@ -455,7 +539,9 @@
         {
         }
 
-        _refreshCts.Dispose();
+        refreshCts.Dispose();
+        _clockTask = null;
+        _sensorRefreshTask = null;
     }
 
     private class SensorReadingModel

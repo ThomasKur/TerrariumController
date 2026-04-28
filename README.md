@@ -38,7 +38,7 @@ Default relay-to-GPIO configuration (override in-app and persist to a config fil
 
 ## SEN-DHT22
 
-Sensors connect to GPIO 23/24/25. Controls for sensors with no data are disabled in the UI, and the corresponding relays remain off by default.
+Sensors connect to GPIO 23/22/25. Controls for sensors with no data are disabled in the UI, and the corresponding relays remain off by default.
 
 ## Technology Stack
 
