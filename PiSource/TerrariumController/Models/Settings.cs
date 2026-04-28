@@ -32,7 +32,7 @@ namespace TerrariumController.Models
 
         // Sensor GPIO Configuration (BCM numbering)
         public int Sensor1GPIO { get; set; } = 23;
-        public int Sensor2GPIO { get; set; } = 24;
+        public int Sensor2GPIO { get; set; } = 22;
         public int Sensor3GPIO { get; set; } = 25;
 
         // Camera settings

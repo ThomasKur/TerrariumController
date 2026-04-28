@@ -7,6 +7,7 @@
 @inject ISettingsService SettingsService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Terrarium Controller</PageTitle>
 
@@ -20,12 +21,16 @@
         <div class="hero-meta">
             <div class="meta-item">
                 <span class="meta-label">Last Updated</span>
-                <span class="meta-value">@DateTime.Now.ToLocalTime().ToString("HH:mm")</span>
+                <span class="meta-value">@DateTime.Now.ToLocalTime().ToString("HH:mm:ss")</span>
             </div>
             <div class="meta-item">
                 <span class="meta-label">Hysteresis</span>
                 <span class="meta-value">@CurrentSettings?.TemperatureHysteresis.ToString("F1")°C</span>
             </div>
+            <a href="/settings" class="settings-link">
+                <span class="settings-icon">⚙️</span>
+                <span>Settings</span>
+            </a>
         </div>
     </header>
 
@@ -143,6 +148,31 @@
     .meta-value {
         font-weight: 600;
         color: #f5f9ff;
+    }
+
+    .settings-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(123, 215, 255, 0.12);
+        border: 1px solid rgba(123, 215, 255, 0.3);
+        border-radius: 10px;
+        padding: 12px 16px;
+        color: #7bd7ff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+
+    .settings-link:hover {
+        background: rgba(123, 215, 255, 0.2);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(123, 215, 255, 0.25);
+    }
+
+    .settings-icon {
+        font-size: 16px;
     }
 
     .sensor-grid {
@@ -293,6 +323,9 @@
     private string OnTime = "08:00";
     private string OffTime = "20:00";
     private Settings? CurrentSettings;
+    private CancellationTokenSource? _refreshCts;
+    private Task? _clockTask;
+    private Task? _sensorRefreshTask;
 
     protected override async Task OnInitializedAsync()
     {
@@ -300,6 +333,10 @@
         OnTime = CurrentSettings.Relay4OnTime;
         OffTime = CurrentSettings.Relay4OffTime;
         await RefreshReadings();
+
+        _refreshCts = new CancellationTokenSource();
+        _clockTask = RunClockAsync(_refreshCts.Token);
+        _sensorRefreshTask = RunSensorRefreshAsync(_refreshCts.Token);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -322,6 +359,37 @@
             Humidity = r.Humidity,
             IsValid = r.IsValid
         }).ToList();
+    }
+
+    private async Task RunClockAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RunSensorRefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshReadings();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private double GetThreshold(int sensorId)
@@ -364,6 +432,30 @@
             CurrentSettings.Relay4OffTime = OffTime;
             await SettingsService.UpdateSettingsAsync(CurrentSettings);
         }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshCts == null)
+        {
+            return;
+        }
+
+        _refreshCts.Cancel();
+
+        var tasks = new[] { _clockTask, _sensorRefreshTask }
+            .Where(task => task != null)
+            .Cast<Task>();
+
+        try
+        {
+            await Task.WhenAll(tasks);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        _refreshCts.Dispose();
     }
 
     private class SensorReadingModel
