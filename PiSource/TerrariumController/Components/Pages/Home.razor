@@ -3,6 +3,7 @@
 @using TerrariumController.Models
 @rendermode InteractiveServer
 @inject ISensorService SensorService
+@inject IRelayService RelayService
 @inject ISettingsService SettingsService
 @inject ILogger<Home> Logger
 @inject IJSRuntime JS
@@ -22,14 +23,18 @@
                 <span class="meta-label">Last Updated</span>
                 <span class="meta-value">@CurrentTime.ToString("HH:mm:ss")</span>
             </div>
-            <div class="meta-item">
-                <span class="meta-label">Hysteresis</span>
-                <span class="meta-value">@CurrentSettings?.TemperatureHysteresis.ToString("F1")°C</span>
-            </div>
             <a href="/settings" class="settings-link" aria-label="Open settings page">
                 <span class="settings-icon">⚙️</span>
                 <span>Settings</span>
             </a>
+            <a href="/logs" class="settings-link logs-link" aria-label="Open logs page">
+                <span class="settings-icon">📋</span>
+                <span>Logs</span>
+            </a>
+            <button @onclick="ShowExitConfirm" class="settings-link exit-link" aria-label="Exit kiosk mode">
+                <span class="settings-icon">🚪</span>
+                <span>Exit</span>
+            </button>
         </div>
     </header>
 
@@ -51,10 +56,14 @@
 
             @foreach (var reading in CurrentReadings.OrderBy(r => r.SensorId))
             {
-                <div class="card sensor-card">
+                <div class="card sensor-card @(IsRelayOn(reading.SensorId) ? "heating" : "")">
                     <div class="card-header">
                         <span class="pill">Sensor @reading.SensorId</span>
                         <span class="label">@reading.Label</span>
+                        @if (IsRelayOn(reading.SensorId))
+                        {
+                            <span class="heating-badge" role="status" aria-label="Relay @reading.SensorId heating active">🔥 Heating active</span>
+                        }
                     </div>
                     <div class="metrics">
                         <div class="metric">
@@ -104,6 +113,20 @@
             </div>
         </div>
     </section>
+
+    @if (ShowConfirmDialog)
+    {
+        <div class="confirm-dialog">
+            <div class="confirm-box">
+                <h2>Exit Kiosk Mode?</h2>
+                <p>This will close the browser. The service will continue running.</p>
+                <div class="confirm-buttons">
+                    <button @onclick="CancelExit" class="confirm-btn confirm-btn-cancel">Cancel</button>
+                    <button @onclick="ExitKiosk" class="confirm-btn confirm-btn-exit">Exit</button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 <style>
@@ -186,6 +209,116 @@
         box-shadow: 0 4px 12px rgba(123, 215, 255, 0.25);
     }
 
+    .logs-link {
+        background: rgba(167, 139, 250, 0.12);
+        border-color: rgba(167, 139, 250, 0.3);
+        color: #c4b5fd;
+    }
+
+    .logs-link:hover {
+        background: rgba(167, 139, 250, 0.22);
+        box-shadow: 0 4px 12px rgba(167, 139, 250, 0.25);
+    }
+
+    .exit-link {
+        background: rgba(239, 68, 68, 0.12);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: #fca5a5;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 999px;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .exit-link:hover {
+        background: rgba(239, 68, 68, 0.22);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+    }
+
+    .exit-link span:first-child {
+        font-size: 20px;
+    }
+
+    .exit-link span:last-child {
+        display: none;
+    }
+
+    .confirm-dialog {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+    }
+
+    .confirm-box {
+        background: linear-gradient(160deg, rgba(34, 45, 64, 0.95), rgba(20, 28, 43, 0.98));
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 400px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .confirm-box h2 {
+        color: #f5f9ff;
+        margin: 0 0 12px 0;
+        font-size: 1.25rem;
+    }
+
+    .confirm-box p {
+        color: #cfd9e8;
+        margin: 0 0 20px 0;
+        line-height: 1.5;
+    }
+
+    .confirm-buttons {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+    }
+
+    .confirm-btn {
+        padding: 10px 16px;
+        border: none;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .confirm-btn-cancel {
+        background: rgba(255, 255, 255, 0.08);
+        color: #a6b3c9;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .confirm-btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.12);
+        color: #e7edf7;
+    }
+
+    .confirm-btn-exit {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: #fff;
+    }
+
+    .confirm-btn-exit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.35);
+    }
+
     .settings-icon {
         font-size: 16px;
     }
@@ -194,6 +327,22 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
         gap: 14px;
+    }
+
+    .sensor-card.heating {
+        border-color: rgba(255, 140, 60, 0.55);
+        box-shadow: 0 0 0 1px rgba(255, 140, 60, 0.2), 0 12px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+
+    .heating-badge {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(255, 140, 60, 0.15);
+        color: #ffb060;
+        border: 1px solid rgba(255, 140, 60, 0.4);
+        white-space: nowrap;
     }
 
     .status-card {
@@ -347,6 +496,7 @@
 
 @code {
     private List<SensorReadingModel> CurrentReadings = new();
+    private Dictionary<int, bool> RelayStates = new();
     private string OnTime = "08:00";
     private string OffTime = "20:00";
     private DateTime CurrentTime = DateTime.Now;
@@ -411,6 +561,7 @@
                 IsValid = r.IsValid
             }).ToList();
 
+            RelayStates = await RelayService.GetAllRelayStatesAsync();
             SensorLoadError = null;
         }
         catch (Exception ex)
@@ -465,6 +616,28 @@
         catch (OperationCanceledException)
         {
         }
+    }
+
+    private bool IsRelayOn(int sensorId)
+    {
+        return RelayStates.TryGetValue(sensorId, out var state) && state;
+    }
+
+    private bool ShowConfirmDialog = false;
+
+    private void ShowExitConfirm()
+    {
+        ShowConfirmDialog = true;
+    }
+
+    private void CancelExit()
+    {
+        ShowConfirmDialog = false;
+    }
+
+    private async Task ExitKiosk()
+    {
+        await JS.InvokeVoidAsync("eval", "window.close();");
     }
 
     private double GetThreshold(int sensorId)
