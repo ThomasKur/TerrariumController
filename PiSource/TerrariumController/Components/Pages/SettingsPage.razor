@@ -192,71 +192,11 @@
                 <button @onclick="CompactDatabase" class="btn-compact">Compact Database</button>
             </section>
 
-            <!-- Recent Logs -->
+            <!-- Logs -->
             <section class="settings-section">
-                <h2>Recent Logs</h2>
-                <div class="log-controls">
-                    <label>
-                        Filter:
-                        <select @onchange="OnLogFilterChanged">
-                            <option value="">All Logs</option>
-                            <option value="StateChange">State Changes</option>
-                            <option value="HourlySnapshot">Hourly Snapshots</option>
-                        </select>
-                    </label>
-                    <button @onclick="RefreshLogs" class="btn-refresh">↻ Refresh</button>
-                </div>
-                @if (RecentLogs == null)
-                {
-                    <p>Loading logs...</p>
-                }
-                else if (RecentLogs.Count == 0)
-                {
-                    <p class="no-logs">No logs found.</p>
-                }
-                else
-                {
-                    <div class="logs-table-container">
-                        <table class="logs-table">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Type</th>
-                                    <th>Details</th>
-                                    <th>Sensor Data</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var log in RecentLogs)
-                                {
-                                    <tr class="@(log.LogType == "StateChange" ? "log-state-change" : "log-snapshot")">
-                                        <td class="log-time">@log.Timestamp.ToString("MM/dd HH:mm:ss")</td>
-                                        <td class="log-type">@log.LogType</td>
-                                        <td class="log-details">@log.Details</td>
-                                        <td class="log-sensors">
-                                            @if (log.Sensor1Temperature.HasValue)
-                                            {
-                                                <span>S1: @log.Sensor1Temperature.Value.ToString("F1")°C/@log.Sensor1Humidity?.ToString("F0")%</span>
-                                            }
-                                            @if (log.Sensor2Temperature.HasValue)
-                                            {
-                                                <span>S2: @log.Sensor2Temperature.Value.ToString("F1")°C/@log.Sensor2Humidity?.ToString("F0")%</span>
-                                            }
-                                            @if (log.Sensor3Temperature.HasValue)
-                                            {
-                                                <span>S3: @log.Sensor3Temperature.Value.ToString("F1")°C/@log.Sensor3Humidity?.ToString("F0")%</span>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="log-footer">
-                        Showing @RecentLogs.Count most recent logs
-                        <a href="/logs" class="link-full-history">View Full History →</a>
-                    </div>
-                }
+                <h2>Logs</h2>
+                <div class="info-text">View the full event and sensor history on the log page.</div>
+                <a href="/logs" class="btn-logs">📋 View Full Log History →</a>
             </section>
 
             <!-- Action Buttons -->
@@ -273,62 +213,87 @@
         max-width: 800px;
         margin: 2rem auto;
         padding: 2rem;
-        background: #f5f5f5;
-        border-radius: 8px;
+        background: #0d1520;
+        border-radius: 12px;
+        color: #e7edf7;
+    }
+
+    .settings-container h1 {
+        color: #f5f9ff;
+        margin-bottom: 1.5rem;
+        font-size: 1.8rem;
     }
 
     .settings-section {
-        background: white;
+        background: linear-gradient(160deg, rgba(34, 45, 64, 0.9), rgba(20, 28, 43, 0.95));
+        border: 1px solid rgba(255, 255, 255, 0.08);
         padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        border-radius: 6px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 1.25rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
 
     .settings-section h2 {
         margin-top: 0;
-        margin-bottom: 1rem;
-        font-size: 1.3rem;
-        color: #333;
-        border-bottom: 2px solid #007bff;
-        padding-bottom: 0.5rem;
+        margin-bottom: 1.1rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #7bd7ff;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-bottom: 1px solid rgba(123, 215, 255, 0.2);
+        padding-bottom: 0.6rem;
     }
 
     .setting-group {
-        margin-bottom: 1rem;
+        margin-bottom: 0.9rem;
     }
 
     .setting-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #cfd9e8;
     }
 
-    .setting-group input {
-        padding: 0.5rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        margin-right: 1rem;
-        width: 120px;
+    .setting-group input[type=number],
+    .setting-group input[type=text],
+    .setting-group input[type=time] {
+        padding: 0.45rem 0.75rem;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        color: #f5f9ff;
+        font-size: 0.95rem;
+        width: 110px;
+        transition: border-color 0.2s;
+    }
+
+    .setting-group input:focus {
+        outline: none;
+        border-color: rgba(123, 215, 255, 0.55);
     }
 
     .setting-group .value {
-        font-weight: bold;
-        color: #007bff;
-        min-width: 80px;
+        font-weight: 700;
+        color: #7bd7ff;
+        min-width: 72px;
         display: inline-block;
     }
 
     .gpio-grid {
         display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0.75rem;
     }
 
     .info-text {
-        color: #666;
-        font-size: 0.9rem;
-        margin-top: 0.5rem;
+        color: #8ea0bd;
+        font-size: 0.875rem;
+        margin-top: 0.6rem;
     }
 
     .button-group {
@@ -338,40 +303,56 @@
         margin-top: 2rem;
     }
 
-    .btn-save, .btn-compact, .btn-cancel {
-        padding: 0.75rem 1.5rem;
+    .btn-save, .btn-compact, .btn-cancel, .btn-refresh {
+        padding: 0.65rem 1.4rem;
         border: none;
-        border-radius: 4px;
+        border-radius: 10px;
         cursor: pointer;
-        font-size: 1rem;
-        transition: background-color 0.3s;
+        font-size: 0.95rem;
+        font-weight: 700;
+        transition: transform 0.1s ease, box-shadow 0.15s ease;
     }
 
     .btn-save {
-        background-color: #28a745;
-        color: white;
+        background: linear-gradient(135deg, #4ade80, #22c55e);
+        color: #0a1a0f;
     }
 
     .btn-save:hover {
-        background-color: #218838;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(74, 222, 128, 0.35);
     }
 
     .btn-compact {
-        background-color: #17a2b8;
-        color: white;
+        background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+        color: #001824;
     }
 
     .btn-compact:hover {
-        background-color: #138496;
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgba(56, 189, 248, 0.35);
     }
 
     .btn-cancel {
-        background-color: #6c757d;
-        color: white;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #a6b3c9;
     }
 
     .btn-cancel:hover {
-        background-color: #5a6268;
+        background: rgba(255, 255, 255, 0.13);
+        color: #e7edf7;
+    }
+
+    .btn-refresh {
+        padding: 0.4rem 1rem;
+        background: rgba(123, 215, 255, 0.12);
+        border: 1px solid rgba(123, 215, 255, 0.3);
+        color: #7bd7ff;
+    }
+
+    .btn-refresh:hover {
+        background: rgba(123, 215, 255, 0.22);
     }
 
     .log-controls {
@@ -379,92 +360,89 @@
         gap: 1rem;
         align-items: center;
         margin-bottom: 1rem;
+        flex-wrap: wrap;
     }
 
     .log-controls label {
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        color: #cfd9e8;
+        font-weight: 600;
+        font-size: 0.9rem;
     }
 
     .log-controls select {
-        padding: 0.4rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-
-    .btn-refresh {
-        padding: 0.4rem 1rem;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-
-    .btn-refresh:hover {
-        background-color: #0056b3;
+        padding: 0.4rem 0.7rem;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        color: #f5f9ff;
+        font-size: 0.9rem;
     }
 
     .logs-table-container {
         max-height: 400px;
         overflow-y: auto;
-        border: 1px solid #ddd;
-        border-radius: 4px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
     }
 
     .logs-table {
         width: 100%;
         border-collapse: collapse;
         font-size: 0.85rem;
+        color: #cfd9e8;
     }
 
     .logs-table thead {
         position: sticky;
         top: 0;
-        background: #f8f9fa;
-        border-bottom: 2px solid #dee2e6;
+        background: rgba(20, 28, 43, 0.98);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .logs-table th {
-        padding: 0.5rem;
+        padding: 0.55rem 0.6rem;
         text-align: left;
-        font-weight: 600;
-        color: #495057;
+        font-weight: 700;
+        color: #7bd7ff;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }
 
     .logs-table td {
-        padding: 0.5rem;
-        border-bottom: 1px solid #f0f0f0;
+        padding: 0.5rem 0.6rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
 
     .log-state-change {
-        background-color: #fff3cd;
+        background-color: rgba(255, 200, 80, 0.06);
     }
 
     .log-snapshot {
-        background-color: #ffffff;
+        background-color: transparent;
     }
 
     .log-time {
         white-space: nowrap;
         font-family: monospace;
-        color: #666;
+        color: #8ea0bd;
     }
 
     .log-type {
-        font-weight: 500;
-        color: #007bff;
+        font-weight: 600;
+        color: #7bd7ff;
     }
 
     .log-details {
-        color: #333;
+        color: #cfd9e8;
     }
 
     .log-sensors {
         font-size: 0.8rem;
-        color: #666;
+        color: #8ea0bd;
     }
 
     .log-sensors span {
@@ -479,34 +457,44 @@
         align-items: center;
         margin-top: 1rem;
         padding-top: 1rem;
-        border-top: 1px solid #ddd;
-        font-size: 0.9rem;
-        color: #666;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        font-size: 0.875rem;
+        color: #8ea0bd;
     }
 
     .link-full-history {
-        color: #007bff;
+        color: #7bd7ff;
         text-decoration: none;
-        font-weight: 500;
+        font-weight: 600;
     }
 
     .link-full-history:hover {
         text-decoration: underline;
     }
 
-    .no-logs {
-        color: #999;
-        font-style: italic;
-        text-align: center;
-        padding: 2rem;
+    .btn-logs {
+        display: inline-block;
+        margin-top: 0.75rem;
+        padding: 0.6rem 1.25rem;
+        background: rgba(167, 139, 250, 0.12);
+        border: 1px solid rgba(167, 139, 250, 0.3);
+        border-radius: 10px;
+        color: #c4b5fd;
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-decoration: none;
+        transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn-logs:hover {
+        background: rgba(167, 139, 250, 0.22);
+        transform: translateY(-1px);
     }
 </style>
 
 @code {
     private Models.Settings CurrentSettings = null!;
     private long DbSize = 0;
-    private List<LogEntry> RecentLogs = null!;
-    private string LogFilter = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -514,7 +502,6 @@
         {
             CurrentSettings = await SettingsService.GetSettingsAsync();
             await RefreshDatabaseSize();
-            await RefreshLogs();
         }
         catch (Exception ex)
         {
@@ -553,31 +540,6 @@
         {
             Logger.LogError(ex, "Error compacting database");
         }
-    }
-
-    private async Task RefreshLogs()
-    {
-        try
-        {
-            RecentLogs = await LoggingService.GetLogEntriesAsync(1, 50);
-            
-            // Apply filter if specified
-            if (!string.IsNullOrEmpty(LogFilter))
-            {
-                RecentLogs = RecentLogs.Where(log => log.LogType == LogFilter).ToList();
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading logs");
-            RecentLogs = new List<LogEntry>();
-        }
-    }
-
-    private async Task OnLogFilterChanged(ChangeEventArgs e)
-    {
-        LogFilter = e.Value?.ToString() ?? "";
-        await RefreshLogs();
     }
 
     private void Cancel()
