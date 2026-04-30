@@ -163,19 +163,56 @@ cp "$SCRIPT_DIR/terrarium.service" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable terrarium
 
-# Create kiosk autostart script
+# Create kiosk autostart script(s)
 echo "Creating Chromium kiosk launcher..."
-mkdir -p /home/terrarium/.config/autostart
-cat > /home/terrarium/.config/autostart/terrarium-kiosk.desktop << EOF
+
+CHROMIUM_BIN=""
+if [ -x "/usr/bin/chromium" ]; then
+    CHROMIUM_BIN="/usr/bin/chromium"
+elif [ -x "/usr/bin/chromium-browser" ]; then
+    CHROMIUM_BIN="/usr/bin/chromium-browser"
+else
+    echo -e "${YELLOW}Warning: Chromium binary not found at /usr/bin/chromium or /usr/bin/chromium-browser${NC}"
+fi
+
+if [ -z "$CHROMIUM_BIN" ]; then
+    echo -e "${YELLOW}Skipping kiosk autostart creation because Chromium is not installed.${NC}"
+else
+
+ACTIVE_USER="${SUDO_USER:-$(logname 2>/dev/null || true)}"
+TARGET_USERS=("terrarium")
+
+if [ -n "$ACTIVE_USER" ] && [ "$ACTIVE_USER" != "root" ] && [ "$ACTIVE_USER" != "terrarium" ]; then
+    TARGET_USERS+=("$ACTIVE_USER")
+fi
+
+for TARGET_USER in "${TARGET_USERS[@]}"; do
+    if ! id "$TARGET_USER" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Skipping kiosk autostart for missing user: $TARGET_USER${NC}"
+        continue
+    fi
+
+    TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+    if [ -z "$TARGET_HOME" ]; then
+        TARGET_HOME="/home/$TARGET_USER"
+    fi
+
+    mkdir -p "$TARGET_HOME/.config/autostart"
+
+    cat > "$TARGET_HOME/.config/autostart/terrarium-kiosk.desktop" << EOF
 [Desktop Entry]
 Type=Application
-Exec=bash -c 'sleep 5; chromium-browser --kiosk http://localhost:5000'
+Name=Terrarium Kiosk
+Exec=/bin/bash -lc 'sleep 5; ${CHROMIUM_BIN} --kiosk --no-first-run --no-default-browser-check --disable-infobars http://localhost:5000'
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
 
-chown terrarium:terrarium /home/terrarium/.config/autostart/terrarium-kiosk.desktop
+    chown "$TARGET_USER:$TARGET_USER" "$TARGET_HOME/.config/autostart/terrarium-kiosk.desktop"
+    echo "Configured kiosk autostart for user: $TARGET_USER ($TARGET_HOME)"
+done
+fi
 
 # Set GPIO permissions for non-root access
 echo "Configuring GPIO permissions..."
