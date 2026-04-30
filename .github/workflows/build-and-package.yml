@@ -35,9 +35,8 @@ jobs:
           cp -R publish/* package/app/
           cp PiSource/install/setup.sh package/
           cp PiSource/install/terrarium.service package/
-          cp PiSource/install/kiosk.sh package/
           cp README.md package/README.md
-          chmod +x package/setup.sh package/kiosk.sh
+          chmod +x package/setup.sh
 
       - name: Create zip
         run: |
