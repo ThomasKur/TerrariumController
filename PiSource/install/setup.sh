@@ -7,6 +7,8 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 echo "=== Terrarium Controller Setup ===" 
 
 # Check if running on Raspberry Pi OS or ARM Debian (Raspberry Pi OS is Debian-based)
@@ -32,6 +34,30 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+contains_user() {
+    local candidate="$1"
+    shift
+
+    for existing in "$@"; do
+        if [ "$existing" = "$candidate" ]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+build_target_users() {
+    TARGET_USERS=("pi" "terrarium")
+    local active_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
+
+    if [ -n "$active_user" ] && [ "$active_user" != "root" ]; then
+        if ! contains_user "$active_user" "${TARGET_USERS[@]}"; then
+            TARGET_USERS+=("$active_user")
+        fi
+    fi
+}
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
@@ -154,7 +180,6 @@ echo "  rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o
 
 # Copy systemd service unit
 echo "Installing systemd service..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$SCRIPT_DIR/terrarium.service" ]; then
     echo -e "${RED}Error: terrarium.service not found in $SCRIPT_DIR${NC}"
     exit 1
@@ -179,12 +204,7 @@ if [ -z "$CHROMIUM_BIN" ]; then
     echo -e "${YELLOW}Skipping kiosk autostart creation because Chromium is not installed.${NC}"
 else
 
-ACTIVE_USER="${SUDO_USER:-$(logname 2>/dev/null || true)}"
-TARGET_USERS=("terrarium")
-
-if [ -n "$ACTIVE_USER" ] && [ "$ACTIVE_USER" != "root" ] && [ "$ACTIVE_USER" != "terrarium" ]; then
-    TARGET_USERS+=("$ACTIVE_USER")
-fi
+build_target_users
 
 for TARGET_USER in "${TARGET_USERS[@]}"; do
     if ! id "$TARGET_USER" >/dev/null 2>&1; then
@@ -213,6 +233,74 @@ EOF
     echo "Configured kiosk autostart for user: $TARGET_USER ($TARGET_HOME)"
 done
 fi
+
+# Create desktop update and kiosk launcher scripts for local users
+echo "Creating desktop update and kiosk launchers..."
+build_target_users
+
+for TARGET_USER in "${TARGET_USERS[@]}"; do
+    if ! id "$TARGET_USER" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Skipping desktop launchers for missing user: $TARGET_USER${NC}"
+        continue
+    fi
+
+    TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
+    if [ -z "$TARGET_HOME" ]; then
+        TARGET_HOME="/home/$TARGET_USER"
+    fi
+
+    DESKTOP_DIR="$TARGET_HOME/Desktop"
+    mkdir -p "$DESKTOP_DIR"
+
+    cat > "$DESKTOP_DIR/update.sh" << EOF
+#!/bin/bash
+set -e
+
+INSTALL_DIR="$SCRIPT_DIR"
+
+if [ "\$EUID" -ne 0 ]; then
+    exec sudo -E bash "\$0" "\$@"
+fi
+
+if ! git -C "\$INSTALL_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Git repository not found for \$INSTALL_DIR"
+    exit 1
+fi
+
+REPO_ROOT="\$(git -C "\$INSTALL_DIR" rev-parse --show-toplevel)"
+git config --global --add safe.directory "\$REPO_ROOT" >/dev/null 2>&1 || true
+
+echo "Updating repository in \$INSTALL_DIR..."
+cd "\$INSTALL_DIR"
+git pull --ff-only
+
+echo "Re-running setup.sh..."
+bash "\$INSTALL_DIR/setup.sh"
+EOF
+
+    cat > "$DESKTOP_DIR/start-kiosk.sh" << EOF
+#!/bin/bash
+set -e
+
+INSTALL_DIR="$SCRIPT_DIR"
+exec "\$INSTALL_DIR/kiosk.sh"
+EOF
+
+    cat > "$DESKTOP_DIR/start-kiosk.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Start Kiosk Mode
+Exec=/bin/bash -lc '"$DESKTOP_DIR/start-kiosk.sh"'
+Icon=applications-internet
+Terminal=false
+Categories=Network;
+EOF
+
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+
+    echo "Created desktop launchers for user: $TARGET_USER"
+done
 
 # Set GPIO permissions for non-root access
 echo "Configuring GPIO permissions..."
