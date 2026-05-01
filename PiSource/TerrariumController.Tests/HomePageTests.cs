@@ -20,6 +20,7 @@ public class HomePageTests
         context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
 
         var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
         var settingsService = new TestSettingsService(new Settings
         {
             Relay4OnTime = "08:00",
@@ -28,6 +29,7 @@ public class HomePageTests
         });
 
         context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
         context.Services.AddSingleton<ISettingsService>(settingsService);
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
@@ -35,14 +37,44 @@ public class HomePageTests
             .Add(p => p.ClockRefreshInterval, TimeSpan.FromMilliseconds(200))
             .Add(p => p.SensorRefreshInterval, TimeSpan.FromMilliseconds(200)));
 
-        var initialClock = cut.Find(".hero-meta .meta-item .meta-value").TextContent;
+        var initialClock = cut.Find(".dashboard-toolbar .meta-item .meta-value").TextContent;
 
         cut.WaitForAssertion(
             () => Assert.True(sensorService.GetLatestReadingsCallCount >= 2),
             TimeSpan.FromSeconds(3));
 
         cut.WaitForAssertion(
-            () => Assert.NotEqual(initialClock, cut.Find(".hero-meta .meta-item .meta-value").TextContent),
+            () => Assert.NotEqual(initialClock, cut.Find(".dashboard-toolbar .meta-item .meta-value").TextContent),
             TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void Home_ExitConfirm_InvokesKioskCloseHelper()
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Strict;
+        context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
+        var closeInvocation = context.JSInterop.SetupVoid("closeKioskWindow");
+
+        var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
+        var settingsService = new TestSettingsService(new Settings
+        {
+            Relay4OnTime = "08:00",
+            Relay4OffTime = "20:00",
+            TemperatureHysteresis = 1.0
+        });
+
+        context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
+        context.Services.AddSingleton<ISettingsService>(settingsService);
+        context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
+
+        var cut = context.RenderComponent<Home>();
+
+        cut.Find(".exit-link").Click();
+        cut.Find(".confirm-btn-exit").Click();
+
+        Assert.Single(closeInvocation.Invocations);
     }
 }

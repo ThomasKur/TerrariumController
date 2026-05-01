@@ -10,3 +10,21 @@ function startCameraSnapshot(path) {
     cameraTimer = setInterval(refresh, 5000);
 }
 
+function closeKioskWindow() {
+    if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+    }
+
+    try {
+        window.open('', '_self');
+        window.close();
+    } catch {
+    }
+
+    setTimeout(() => {
+        if (!window.closed) {
+            window.location.replace('about:blank');
+        }
+    }, 150);
+}
+

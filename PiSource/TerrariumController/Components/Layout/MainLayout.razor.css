@@ -8,19 +8,29 @@ body {
     display: flex;
     align-items: stretch;
     justify-content: center;
-    padding: 32px;
+    padding: 14px;
     background: linear-gradient(145deg, rgba(10, 15, 24, 0.6), rgba(20, 26, 39, 0.8));
     backdrop-filter: blur(4px);
 }
 
 .content-surface {
-    width: min(1200px, 100%);
+    width: min(1240px, 100%);
     margin: auto;
     background: rgba(16, 22, 33, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 18px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    padding: 28px 30px;
+    padding: 18px 20px;
+}
+
+@media (max-width: 768px) {
+    .layout-shell {
+        padding: 8px;
+    }
+
+    .content-surface {
+        padding: 14px;
+    }
 }
 
 #blazor-error-ui {
