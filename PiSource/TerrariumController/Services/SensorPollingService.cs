@@ -65,8 +65,8 @@ namespace TerrariumController.Services
                             else
                             {
                                 _logger.LogWarning("Sensor {SensorId} reading invalid or missing", sensorId);
-                                // Keep relay off if sensor is invalid
-                                await relayService.SetRelayStateAsync(sensorId, false, "Sensor Invalid");
+                                // Preserve previous relay state when the sensor read is invalid.
+                                // This avoids flipping relays based on missing/unstable samples.
                             }
                         }
                     }

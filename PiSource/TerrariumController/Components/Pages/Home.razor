@@ -4,6 +4,7 @@
 @rendermode InteractiveServer
 @inject ISensorService SensorService
 @inject IRelayService RelayService
+@inject ISettingsService SettingsService
 @inject ILogger<Home> Logger
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -83,7 +84,10 @@
                             </div>
                             <div class="metrics">
                                 <div class="metric">
-                                    <div class="metric-value">@(reading.Temperature?.ToString("F1") ?? "--")°C</div>
+                                    <div class="metric-value">
+                                        <span>@(reading.Temperature?.ToString("F1") ?? "--")°C</span>
+                                        <small class="threshold-inline">/ @GetThresholdDisplay(reading.SensorId)</small>
+                                    </div>
                                     <div class="metric-label">Temperature</div>
                                 </div>
                                 <div class="metric">
@@ -423,6 +427,16 @@
         font-weight: 600;
         color: #f5f9ff;
         line-height: 1.05;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .threshold-inline {
+        font-size: 12px;
+        font-weight: 500;
+        color: #8ea0bd;
     }
 
     .metric-label {
@@ -509,6 +523,7 @@
     private DateTime CurrentTime = DateTime.Now;
     private bool IsLoadingSensors = true;
     private string? SensorLoadError;
+    private Dictionary<int, double> Thresholds = new();
     private CancellationTokenSource? _refreshCts;
     private Task? _clockTask;
     private Task? _sensorRefreshTask;
@@ -563,6 +578,14 @@
                 Humidity = r.Humidity,
                 IsValid = r.IsValid
             }).ToList();
+
+            var settings = await SettingsService.GetSettingsAsync();
+            Thresholds = new Dictionary<int, double>
+            {
+                { 1, settings.Threshold1Temperature },
+                { 2, settings.Threshold2Temperature },
+                { 3, settings.Threshold3Temperature }
+            };
 
             RelayStates = await RelayService.GetAllRelayStatesAsync();
             SensorLoadError = null;
@@ -624,6 +647,13 @@
     private bool IsRelayOn(int sensorId)
     {
         return RelayStates.TryGetValue(sensorId, out var state) && state;
+    }
+
+    private string GetThresholdDisplay(int sensorId)
+    {
+        return Thresholds.TryGetValue(sensorId, out var threshold)
+            ? $"{threshold:F1}°C"
+            : "--";
     }
 
     private bool ShowConfirmDialog = false;

@@ -128,6 +128,7 @@ namespace TerrariumController.Services
             var latestState = await _context.RelayStates
                 .Where(r => r.RelayId == relayId)
                 .OrderByDescending(r => r.Timestamp)
+                .ThenByDescending(r => r.Id)
                 .Select(r => (bool?)r.State)
                 .FirstOrDefaultAsync();
 
