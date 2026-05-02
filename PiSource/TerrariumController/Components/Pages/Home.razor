@@ -400,6 +400,8 @@
         gap: 8px;
         flex-wrap: wrap;
         margin-bottom: 10px;
+        padding-left: 0px;
+        padding-right: 0px;
     }
 
     .pill {
@@ -480,9 +482,93 @@
         object-fit: cover;
     }
 
-    @@media (max-width: 900px) {
+    @@media (max-width: 700px) {
         .dashboard-shell {
             grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+        .dashboard {
+            gap: 8px;
+        }
+
+        .dashboard-toolbar {
+            gap: 8px;
+        }
+
+        .meta-item {
+            padding: 7px 10px;
+            min-width: 96px;
+        }
+
+        .meta-label {
+            font-size: 11px;
+        }
+
+        .settings-link {
+            padding: 8px 10px;
+            font-size: 12px;
+            gap: 6px;
+        }
+
+        .settings-icon,
+        .settings-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .dashboard-shell {
+            grid-template-columns: minmax(0, 1.2fr) minmax(230px, 0.8fr);
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .sensor-grid {
+            gap: 8px;
+        }
+
+        .card {
+            padding: 9px;
+            border-radius: 12px;
+        }
+
+        .card-header {
+            margin-bottom: 7px;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 3px 8px;
+        }
+
+        .label {
+            font-size: 13px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+        }
+
+        .threshold-inline,
+        .metric-label {
+            font-size: 11px;
+        }
+
+        .heating-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+        }
+
+        .camera-panel {
+            min-height: 0;
+        }
+
+        .camera-frame {
+            margin-top: 6px;
+            aspect-ratio: auto;
+            min-height: 0;
+            height: 100%;
         }
     }
 
