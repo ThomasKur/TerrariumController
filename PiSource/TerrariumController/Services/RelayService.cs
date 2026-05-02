@@ -1,5 +1,6 @@
 using TerrariumController.Data;
 using TerrariumController.Models;
+using Microsoft.EntityFrameworkCore;
 using System.Device.Gpio;
 
 namespace TerrariumController.Services
@@ -124,10 +125,23 @@ namespace TerrariumController.Services
 
         public async Task<bool> GetRelayStateAsync(int relayId)
         {
-            if (_relayStates.TryGetValue(relayId, out var state))
+            var latestState = await _context.RelayStates
+                .Where(r => r.RelayId == relayId)
+                .OrderByDescending(r => r.Timestamp)
+                .Select(r => (bool?)r.State)
+                .FirstOrDefaultAsync();
+
+            if (latestState.HasValue)
             {
-                return state;
+                _relayStates[relayId] = latestState.Value;
+                return latestState.Value;
             }
+
+            if (_relayStates.TryGetValue(relayId, out var inMemoryState))
+            {
+                return inMemoryState;
+            }
+
             return false;
         }
 
@@ -184,7 +198,14 @@ namespace TerrariumController.Services
 
         public async Task<Dictionary<int, bool>> GetAllRelayStatesAsync()
         {
-            return new Dictionary<int, bool>(_relayStates);
+            var states = new Dictionary<int, bool>();
+
+            for (int relayId = 1; relayId <= 6; relayId++)
+            {
+                states[relayId] = await GetRelayStateAsync(relayId);
+            }
+
+            return states;
         }
 
         public async Task<bool> ShouldRelayBeOnAsync(int relayId, double? temperature, double? humidity)

@@ -77,4 +77,52 @@ public class HomePageTests
 
         Assert.Single(closeInvocation.Invocations);
     }
+
+    [Fact]
+    public async Task Home_ShowsHeatingBadgeAndDayMode_WhenAssignedRelaysAreOn()
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
+
+        var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
+        await relayService.SetRelayStateAsync(1, true, "test");
+        await relayService.SetRelayStateAsync(4, true, "test");
+
+        context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
+        context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
+        context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
+
+        var cut = context.RenderComponent<Home>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Heating", cut.Markup);
+            Assert.Contains("Day mode", cut.Markup);
+        }, TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public async Task Home_ShowsNightModeAndNoThresholdSlider()
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
+
+        var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
+        await relayService.SetRelayStateAsync(4, false, "test");
+
+        context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
+        context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
+        context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
+
+        var cut = context.RenderComponent<Home>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Night mode", cut.Markup), TimeSpan.FromSeconds(3));
+        Assert.Empty(cut.FindAll("input[type='range']"));
+    }
 }

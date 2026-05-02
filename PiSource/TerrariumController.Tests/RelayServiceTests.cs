@@ -59,6 +59,21 @@ public class RelayServiceTests
         Assert.False(shouldBeOn);
     }
 
+    [Fact]
+    public async Task GetRelayStateAsync_PersistsAcrossServiceInstances()
+    {
+        await using var context = CreateContext();
+        var settingsService = new TestSettingsService(new Settings());
+        var writerService = CreateRelayService(context, settingsService);
+
+        await writerService.SetRelayStateAsync(2, true, "test");
+
+        var readerService = CreateRelayService(context, settingsService);
+        var state = await readerService.GetRelayStateAsync(2);
+
+        Assert.True(state);
+    }
+
     private static RelayService CreateRelayService(AppDbContext context, ISettingsService settingsService)
     {
         return new RelayService(

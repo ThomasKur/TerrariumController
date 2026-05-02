@@ -191,17 +191,8 @@ systemctl enable terrarium
 # Create kiosk autostart script(s)
 echo "Creating Chromium kiosk launcher..."
 
-CHROMIUM_BIN=""
-if [ -x "/usr/bin/chromium" ]; then
-    CHROMIUM_BIN="/usr/bin/chromium"
-elif [ -x "/usr/bin/chromium-browser" ]; then
-    CHROMIUM_BIN="/usr/bin/chromium-browser"
-else
-    echo -e "${YELLOW}Warning: Chromium binary not found at /usr/bin/chromium or /usr/bin/chromium-browser${NC}"
-fi
-
-if [ -z "$CHROMIUM_BIN" ]; then
-    echo -e "${YELLOW}Skipping kiosk autostart creation because Chromium is not installed.${NC}"
+if [ ! -f "$SCRIPT_DIR/start-kiosk.sh" ]; then
+    echo -e "${YELLOW}Skipping kiosk autostart creation because $SCRIPT_DIR/start-kiosk.sh is missing.${NC}"
 else
 
 build_target_users
@@ -223,7 +214,7 @@ for TARGET_USER in "${TARGET_USERS[@]}"; do
 [Desktop Entry]
 Type=Application
 Name=Terrarium Kiosk
-Exec=/bin/bash -lc 'sleep 5; ${CHROMIUM_BIN} --kiosk --no-first-run --no-default-browser-check --disable-infobars http://localhost:5000'
+Exec=/bin/bash -lc 'KIOSK_WAIT_SECONDS=90 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"'
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -283,7 +274,7 @@ EOF
 set -e
 
 INSTALL_DIR="$SCRIPT_DIR"
-exec "\$INSTALL_DIR/kiosk.sh"
+exec /bin/bash "\$INSTALL_DIR/start-kiosk.sh" "http://localhost:5000"
 EOF
 
     cat > "$DESKTOP_DIR/start-kiosk.desktop" << EOF

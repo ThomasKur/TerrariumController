@@ -14,7 +14,9 @@ fi
 
 exec "$CHROMIUM_BIN" \
 	--kiosk \
+	--new-window \
 	--no-first-run \
 	--no-default-browser-check \
+	--password-store=basic \
 	--disable-infobars \
 	"$URL"
