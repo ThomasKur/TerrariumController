@@ -259,4 +259,85 @@ public class ControlOrchestratorCoordinatorTests
             return Task.CompletedTask;
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Stale-sensor failsafe
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task ControlCycle_AppliesStaleFailsafe_WhenSensorNeverReturnedValidReading()
+    {
+        var services = new ServiceCollection();
+        var relayService = new RuleBasedRelayService();
+
+        // Pre-seed relay 1 as ON so we can verify the failsafe turns it OFF.
+        await relayService.SetRelayStateAsync(1, true, "pre-seed");
+        relayService.AppliedCommands.Clear();
+
+        services.AddLogging();
+        services.AddSingleton<ISettingsService>(new TestSettingsService(new Settings
+        {
+            Threshold1Temperature = 29.0,
+            Threshold2Temperature = 29.0,
+            Threshold3Temperature = 29.0,
+            TemperatureHysteresis = 1.0,
+            Relay4OnTime = "08:00",
+            Relay4OffTime = "20:00"
+        }));
+        services.AddSingleton<ILoggingService>(new NoOpLoggingService());
+        // Sensor always returns invalid
+        services.AddSingleton<ISensorService>(new InvalidSensorService());
+        services.AddSingleton<IHumidityService, NoOpHumidityService>();
+        services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
+        services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+        services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+        services.AddSingleton(new RelayCommandCoordinatorOptions { ManualOverrideDuration = TimeSpan.FromMinutes(15) });
+        services.AddSingleton(relayService);
+        services.AddScoped<IRelayService>(_ => relayService);
+        services.AddSingleton<RelayCommandCoordinator>();
+        services.AddSingleton<IRelayCommandCoordinator>(sp => sp.GetRequiredService<RelayCommandCoordinator>());
+
+        await using var provider = services.BuildServiceProvider();
+
+        var coordinator = provider.GetRequiredService<RelayCommandCoordinator>();
+        await coordinator.StartAsync(CancellationToken.None);
+
+        var orchestrator = new ControlOrchestratorService(
+            provider,
+            NullLogger<ControlOrchestratorService>.Instance,
+            provider.GetRequiredService<IControlLoopSignal>(),
+            provider.GetRequiredService<IControlDiagnosticsService>(),
+            provider.GetRequiredService<IRuntimeHealthService>());
+
+        await orchestrator.RunSingleCycleAsync(CancellationToken.None, "test");
+
+        // Relay 1 should have been commanded OFF via stale failsafe
+        Assert.Contains(relayService.AppliedCommands,
+            c => c.RelayId == 1 && !c.State && c.Trigger == "Sensor Stale Failsafe");
+
+        await coordinator.StopAsync(CancellationToken.None);
+    }
+
+    private sealed class InvalidSensorService : ISensorService
+    {
+        public Task<SensorReading?> ReadSensorAsync(int sensorId)
+        {
+            return Task.FromResult<SensorReading?>(new SensorReading
+            {
+                SensorId = sensorId,
+                IsValid = false,
+                Timestamp = DateTime.UtcNow
+            });
+        }
+
+        public Task<List<SensorReading>> GetLatestReadingsAsync()
+        {
+            return Task.FromResult(new List<SensorReading>());
+        }
+
+        public Task StoreSensorReadingAsync(SensorReading reading)
+        {
+            return Task.CompletedTask;
+        }
+    }
 }
