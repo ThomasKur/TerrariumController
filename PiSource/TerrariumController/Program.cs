@@ -21,12 +21,17 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<ILoggingService, LoggingService>();
 builder.Services.AddScoped<ISensorService, SensorService>();
 builder.Services.AddScoped<IRelayService, RelayService>();
-builder.Services.AddScoped<ISchedulerService, SchedulerService>();
 builder.Services.AddScoped<IHumidityService, HumidityService>();
+builder.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
+builder.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+builder.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+builder.Services.AddSingleton(new RelayCommandCoordinatorOptions());
+builder.Services.AddSingleton<RelayCommandCoordinator>();
+builder.Services.AddSingleton<IRelayCommandCoordinator>(sp => sp.GetRequiredService<RelayCommandCoordinator>());
 
 // Register background services
-builder.Services.AddHostedService<SensorPollingService>();
-builder.Services.AddHostedService<ScheduledTaskService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<RelayCommandCoordinator>());
+builder.Services.AddHostedService<ControlOrchestratorService>();
 
 // Add SignalR for real-time updates
 builder.Services.AddSignalR();
@@ -37,11 +42,14 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var runtimeHealth = scope.ServiceProvider.GetRequiredService<IRuntimeHealthService>();
     await dbContext.Database.MigrateAsync();
+    runtimeHealth.MarkDatabaseReady();
 
     // Initialize GPIO for relay control
     var relayService = scope.ServiceProvider.GetRequiredService<IRelayService>();
     await relayService.InitializeGpioAsync();
+    runtimeHealth.MarkGpioReady();
 }
 
 // Configure the HTTP request pipeline.
@@ -58,6 +66,24 @@ app.UseAntiforgery();
 
 // Map SignalR hub
 app.MapHub<SensorHub>("/sensorHub");
+
+app.MapGet("/healthz", (IRuntimeHealthService runtimeHealth) =>
+{
+    return Results.Ok(runtimeHealth.GetSnapshot());
+});
+
+app.MapGet("/readyz", (IRuntimeHealthService runtimeHealth) =>
+{
+    var snapshot = runtimeHealth.GetSnapshot();
+    return snapshot.IsReady
+        ? Results.Ok(snapshot)
+        : Results.Json(snapshot, statusCode: StatusCodes.Status503ServiceUnavailable);
+});
+
+app.MapGet("/api/diagnostics/control", (IControlDiagnosticsService diagnostics) =>
+{
+    return Results.Ok(diagnostics.GetSnapshot());
+});
 
 app.MapStaticAssets();
 

@@ -1,0 +1,192 @@
+@page "/diagnostics"
+@using TerrariumController.Services
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IControlDiagnosticsService DiagnosticsService
+
+<PageTitle>Control Diagnostics</PageTitle>
+
+<div class="diagnostics-container">
+    <h1>Control Diagnostics</h1>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="label">Snapshot (UTC)</div>
+            <div class="value">@Snapshot.SnapshotUtc.ToString("yyyy-MM-dd HH:mm:ss")</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Relay Queue Depth</div>
+            <div class="value">@Snapshot.QueueDepth</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Last Command Latency</div>
+            <div class="value">@Snapshot.LastCommandLatencyMs.ToString("F1") ms</div>
+        </div>
+    </div>
+
+    <section class="panel">
+        <h2>Sensors</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Sensor</th>
+                    <th>Status</th>
+                    <th>Timestamp (UTC)</th>
+                    <th>Temp</th>
+                    <th>Humidity</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sensor in Snapshot.Sensors.Values.OrderBy(s => s.SensorId))
+                {
+                    <tr>
+                        <td>@sensor.SensorId</td>
+                        <td>@sensor.Status</td>
+                        <td>@sensor.LastTimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@(sensor.Temperature?.ToString("F1") ?? "--")</td>
+                        <td>@(sensor.Humidity?.ToString("F0") ?? "--")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Relay Decisions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Relay</th>
+                    <th>Target</th>
+                    <th>Applied</th>
+                    <th>Reason</th>
+                    <th>Cycle</th>
+                    <th>Timestamp (UTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var relay in Snapshot.Relays.Values.OrderBy(r => r.RelayId))
+                {
+                    <tr>
+                        <td>@relay.RelayId</td>
+                        <td>@(relay.TargetState ? "ON" : "OFF")</td>
+                        <td>@relay.Applied</td>
+                        <td>@relay.Reason</td>
+                        <td>@relay.CycleId</td>
+                        <td>@relay.LastDecisionUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<style>
+    .diagnostics-container {
+        max-width: 1100px;
+        margin: 1rem auto;
+        padding: 1rem;
+        color: #e7edf7;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .summary-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 0.75rem;
+    }
+
+    .summary-card .label {
+        font-size: 0.85rem;
+        color: #a6b3c9;
+    }
+
+    .summary-card .value {
+        font-weight: 700;
+        margin-top: 0.25rem;
+    }
+
+    .panel {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    th, td {
+        text-align: left;
+        padding: 0.45rem 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        white-space: nowrap;
+    }
+
+    th {
+        color: #7bd7ff;
+        font-weight: 700;
+    }
+</style>
+
+@code {
+    private ControlDiagnosticsSnapshot Snapshot = new(DateTime.UtcNow, new Dictionary<int, SensorDiagnostic>(), new Dictionary<int, RelayDecisionDiagnostic>(), 0, 0);
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    protected override Task OnInitializedAsync()
+    {
+        Refresh();
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = Task.Run(() => RunRefreshLoopAsync(_cts.Token));
+        return Task.CompletedTask;
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        if (_timer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    Refresh();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Refresh()
+    {
+        Snapshot = DiagnosticsService.GetSnapshot();
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+    }
+}

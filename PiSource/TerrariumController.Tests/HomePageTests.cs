@@ -31,6 +31,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISensorService>(sensorService);
         context.Services.AddSingleton<IRelayService>(relayService);
         context.Services.AddSingleton<ISettingsService>(settingsService);
+        context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+        context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>(parameters => parameters
@@ -68,6 +70,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISensorService>(sensorService);
         context.Services.AddSingleton<IRelayService>(relayService);
         context.Services.AddSingleton<ISettingsService>(settingsService);
+        context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+        context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -93,6 +97,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISensorService>(sensorService);
         context.Services.AddSingleton<IRelayService>(relayService);
         context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
+        context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+        context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -118,11 +124,83 @@ public class HomePageTests
         context.Services.AddSingleton<ISensorService>(sensorService);
         context.Services.AddSingleton<IRelayService>(relayService);
         context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
+        context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
+        context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
 
         cut.WaitForAssertion(() => Assert.Contains("Night mode", cut.Markup), TimeSpan.FromSeconds(3));
         Assert.Empty(cut.FindAll("input[type='range']"));
+    }
+
+    [Fact]
+    public void Home_ShowsDiagnosticsLink_AndControlStateIndicators()
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
+
+        var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
+        var settingsService = new TestSettingsService();
+        var diagnosticsService = new ControlDiagnosticsService();
+        diagnosticsService.UpdateQueueMetrics(3, 42.5);
+
+        var runtimeHealthService = new RuntimeHealthService();
+        runtimeHealthService.MarkDatabaseReady();
+        runtimeHealthService.MarkGpioReady();
+        runtimeHealthService.MarkControlLoopStarted();
+        runtimeHealthService.MarkSuccessfulCycle(DateTime.UtcNow.AddSeconds(-10));
+
+        context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
+        context.Services.AddSingleton<ISettingsService>(settingsService);
+        context.Services.AddSingleton<IControlDiagnosticsService>(diagnosticsService);
+        context.Services.AddSingleton<IRuntimeHealthService>(runtimeHealthService);
+        context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
+
+        var cut = context.RenderComponent<Home>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Service Readiness", cut.Markup);
+            Assert.Contains("Ready", cut.Markup);
+            Assert.Contains("Depth 3, 42.5 ms", cut.Markup);
+            Assert.Contains("/diagnostics", cut.Markup);
+        }, TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void Home_ShowsStartingState_WhenRuntimeIsNotReady()
+    {
+        using var context = new TestContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.SetupVoid("startCameraSnapshot", _ => true);
+
+        var sensorService = new PollingSensorService();
+        var relayService = new RecordingRelayService();
+        var settingsService = new TestSettingsService();
+        var diagnosticsService = new ControlDiagnosticsService();
+
+        // Deliberately keep runtime health at defaults to verify the not-ready UI state.
+        var runtimeHealthService = new RuntimeHealthService();
+
+        context.Services.AddSingleton<ISensorService>(sensorService);
+        context.Services.AddSingleton<IRelayService>(relayService);
+        context.Services.AddSingleton<ISettingsService>(settingsService);
+        context.Services.AddSingleton<IControlDiagnosticsService>(diagnosticsService);
+        context.Services.AddSingleton<IRuntimeHealthService>(runtimeHealthService);
+        context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
+
+        var cut = context.RenderComponent<Home>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Service Readiness", cut.Markup);
+            Assert.Contains("Starting", cut.Markup);
+            Assert.Contains("state-not-ready", cut.Markup);
+            Assert.Contains("No cycle completed yet", cut.Markup);
+        }, TimeSpan.FromSeconds(3));
     }
 }

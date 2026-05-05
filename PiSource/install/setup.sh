@@ -48,6 +48,41 @@ contains_user() {
     return 1
 }
 
+print_readyz_details() {
+    local readyz_output="$1"
+
+    if [ -z "$readyz_output" ]; then
+        echo "  (no readiness payload returned)"
+        return
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        READYZ_OUTPUT="$readyz_output" python3 - <<'PY'
+import json
+import os
+
+payload = os.environ.get("READYZ_OUTPUT", "")
+try:
+    data = json.loads(payload)
+except Exception:
+    print(payload)
+    raise SystemExit(0)
+
+print(f"  ready: {'yes' if data.get('isReady') else 'no'}")
+print(f"  databaseReady: {data.get('databaseReady')}")
+print(f"  gpioReady: {data.get('gpioReady')}")
+print(f"  controlLoopStarted: {data.get('controlLoopStarted')}")
+print(f"  lastSuccessfulCycleUtc: {data.get('lastSuccessfulCycleUtc')}")
+print(f"  lastCycleStatus: {data.get('lastCycleStatus')}")
+print(f"  snapshotUtc: {data.get('snapshotUtc')}")
+PY
+        return
+    fi
+
+    echo "$readyz_output" | sed 's/[{}]//g; s/,/\
+/g; s/"//g; s/^/  /'
+}
+
 build_target_users() {
     TARGET_USERS=("pi" "terrarium")
     local active_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
@@ -107,6 +142,22 @@ mkdir -p /opt/terrarium
 mkdir -p /opt/terrarium/logs
 chown terrarium:terrarium /opt/terrarium
 chown terrarium:terrarium /opt/terrarium/logs
+
+echo "Creating service environment file..."
+mkdir -p /etc/terrarium
+if [ ! -f /etc/terrarium/terrarium.env ]; then
+    cat > /etc/terrarium/terrarium.env << 'EOF'
+# Terrarium Controller environment configuration
+ASPNETCORE_URLS=http://0.0.0.0:5000
+ASPNETCORE_ENVIRONMENT=Production
+CAMERA_WIDTH=640
+CAMERA_HEIGHT=480
+CAMERA_FPS=15
+EOF
+    echo "Created /etc/terrarium/terrarium.env"
+else
+    echo "Keeping existing /etc/terrarium/terrarium.env"
+fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
 echo "Creating app launcher script..."
@@ -432,12 +483,43 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         # Try to connect to the service
         echo ""
         if command -v curl >/dev/null 2>&1; then
-            echo "Testing connection..."
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000 --connect-timeout 5 --max-time 10 | grep -q "200\|302"; then
-                echo -e "${GREEN}✓ Service is responding on port 5000${NC}"
+            echo "Testing health endpoints..."
+
+            HEALTH_OK=false
+            READY_OK=false
+
+            for attempt in $(seq 1 12); do
+                if curl -fsS http://localhost:5000/healthz --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+                    HEALTH_OK=true
+                    echo -e "${GREEN}✓ Liveness endpoint responded${NC}"
+                    break
+                fi
+                sleep 2
+            done
+
+            for attempt in $(seq 1 20); do
+                if curl -fsS http://localhost:5000/readyz --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+                    READY_OK=true
+                    echo -e "${GREEN}✓ Readiness endpoint responded${NC}"
+                    break
+                fi
+                sleep 2
+            done
+
+            if [ "$HEALTH_OK" = false ]; then
+                echo -e "${RED}✗ Liveness endpoint did not respond${NC}"
+                journalctl -u terrarium -n 20 --no-pager
+                exit 1
+            fi
+
+            if [ "$READY_OK" = false ]; then
+                echo -e "${YELLOW}⚠ Service is alive but not ready yet${NC}"
+                echo "Readiness details:"
+                READYZ_OUTPUT=$(curl -sS http://localhost:5000/readyz || true)
+                print_readyz_details "$READYZ_OUTPUT"
             else
-                echo -e "${YELLOW}⚠ Service started but not responding yet (may still be initializing)${NC}"
-                echo "Wait 10 seconds and try: curl http://localhost:5000"
+                echo "Application root check:"
+                curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:5000 --connect-timeout 5 --max-time 10 || true
             fi
         fi
     else

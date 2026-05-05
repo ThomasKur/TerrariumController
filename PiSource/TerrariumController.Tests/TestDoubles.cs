@@ -109,6 +109,17 @@ internal sealed class RecordingRelayService : IRelayService
     }
 }
 
+internal sealed class RecordingRelayCommandCoordinator : IRelayCommandCoordinator
+{
+    public List<(int RelayId, bool State, string Trigger)> Calls { get; } = new();
+
+    public Task<bool> RequestRelayStateAsync(int relayId, bool state, string triggerSource, CancellationToken cancellationToken = default)
+    {
+        Calls.Add((relayId, state, triggerSource));
+        return Task.FromResult(true);
+    }
+}
+
 internal sealed class PollingSensorService : ISensorService
 {
     private readonly List<SensorReading> _readings;
