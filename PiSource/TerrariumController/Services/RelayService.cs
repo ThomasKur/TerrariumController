@@ -61,7 +61,8 @@ namespace TerrariumController.Services
 
                 if (_gpioController == null)
                 {
-                    _gpioController = new GpioController();
+                    // Relay GPIO values in Settings are BOARD pin numbers.
+                    _gpioController = new GpioController(PinNumberingScheme.Board);
                 }
 
                 // Initialize all relay pins as outputs (inactive/low)
