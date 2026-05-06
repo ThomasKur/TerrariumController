@@ -7,6 +7,10 @@
 <PageTitle>Control Diagnostics</PageTitle>
 
 <div class="diagnostics-container">
+    <div class="page-actions">
+        <a href="/" class="back-link" aria-label="Back to home page">Back to Home</a>
+    </div>
+
     <h1>Control Diagnostics</h1>
 
     <div class="summary-grid">
@@ -26,6 +30,14 @@
 
     <section class="panel">
         <h2>Sensors</h2>
+        <div class="status-legend" role="note" aria-label="Sensor status legend">
+            <h3>Status Legend</h3>
+            <ul>
+                <li><span class="legend-chip legend-valid">valid</span> Current sensor read succeeded. Relay decisions use this reading.</li>
+                <li><span class="legend-chip legend-invalid">invalid-preserve</span> Current read failed, but a recent valid read exists. Relay state is preserved.</li>
+                <li><span class="legend-chip legend-failsafe">stale-failsafe</span> Current read failed and no recent valid read exists. Safety fallback forces relay OFF.</li>
+            </ul>
+        </div>
         <table>
             <thead>
                 <tr>
@@ -89,6 +101,28 @@
         color: #e7edf7;
     }
 
+    .page-actions {
+        margin-bottom: 0.75rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #7bd7ff;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid rgba(123, 215, 255, 0.45);
+        border-radius: 8px;
+        background: rgba(8, 24, 38, 0.35);
+    }
+
+    .back-link:hover {
+        color: #cdefff;
+        border-color: rgba(123, 215, 255, 0.8);
+        background: rgba(8, 24, 38, 0.55);
+    }
+
     .summary-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -120,6 +154,59 @@
         padding: 1rem;
         margin-bottom: 1rem;
         overflow-x: auto;
+    }
+
+    .status-legend {
+        margin-bottom: 0.85rem;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        background: rgba(11, 16, 24, 0.45);
+    }
+
+    .status-legend h3 {
+        margin: 0 0 0.45rem 0;
+        font-size: 0.95rem;
+        color: #cfe6ff;
+    }
+
+    .status-legend ul {
+        margin: 0;
+        padding-left: 1.1rem;
+    }
+
+    .status-legend li {
+        margin: 0.35rem 0;
+        line-height: 1.35;
+    }
+
+    .legend-chip {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.8rem;
+        padding: 0.05rem 0.4rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        margin-right: 0.3rem;
+        white-space: nowrap;
+    }
+
+    .legend-valid {
+        color: #bbf7d0;
+        background: rgba(34, 197, 94, 0.16);
+        border-color: rgba(34, 197, 94, 0.45);
+    }
+
+    .legend-invalid {
+        color: #fde68a;
+        background: rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    .legend-failsafe {
+        color: #fecaca;
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.45);
     }
 
     table {
