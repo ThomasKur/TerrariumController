@@ -213,6 +213,14 @@ if ! apt install -y libcamera-tools libcamera-apps ffmpeg mjpeg-streamer; then
     echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
 fi
 
+echo "Installing Chromium browser for kiosk mode..."
+if ! apt install -y chromium-browser; then
+    echo -e "${YELLOW}Warning: chromium-browser installation failed, trying chromium...${NC}"
+    if ! apt install -y chromium; then
+        echo -e "${YELLOW}Warning: Chromium installation failed. Kiosk mode may not start until Chromium is installed.${NC}"
+    fi
+fi
+
 # Verify camera is accessible
 if [ -c /dev/video0 ]; then
     echo -e "${GREEN}Camera device /dev/video0 detected${NC}"
