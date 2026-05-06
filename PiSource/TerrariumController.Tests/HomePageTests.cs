@@ -33,6 +33,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(settingsService);
         context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
         context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>(parameters => parameters
@@ -72,6 +74,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(settingsService);
         context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
         context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -99,6 +103,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
         context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
         context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -126,6 +132,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(new TestSettingsService());
         context.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
         context.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -158,6 +166,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(settingsService);
         context.Services.AddSingleton<IControlDiagnosticsService>(diagnosticsService);
         context.Services.AddSingleton<IRuntimeHealthService>(runtimeHealthService);
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
@@ -191,6 +201,8 @@ public class HomePageTests
         context.Services.AddSingleton<ISettingsService>(settingsService);
         context.Services.AddSingleton<IControlDiagnosticsService>(diagnosticsService);
         context.Services.AddSingleton<IRuntimeHealthService>(runtimeHealthService);
+        context.Services.AddSingleton<IRelayCommandCoordinator>(new RecordingRelayCommandCoordinator());
+        context.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
         context.Services.AddSingleton(typeof(ILogger<Home>), NullLogger<Home>.Instance);
 
         var cut = context.RenderComponent<Home>();
