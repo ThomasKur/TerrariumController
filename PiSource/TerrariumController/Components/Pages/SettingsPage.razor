@@ -10,6 +10,10 @@
 <PageTitle>Settings - Terrarium Controller</PageTitle>
 
 <div class="settings-container">
+    <div class="page-actions">
+        <a href="/" class="back-link" aria-label="Back to home page">Back to Home</a>
+    </div>
+
     <h1>Settings</h1>
 
     @if (!string.IsNullOrWhiteSpace(SaveMessage))
@@ -237,6 +241,28 @@
         background: #0d1520;
         border-radius: 12px;
         color: #e7edf7;
+    }
+
+    .page-actions {
+        margin-bottom: 0.75rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #7bd7ff;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid rgba(123, 215, 255, 0.45);
+        border-radius: 8px;
+        background: rgba(8, 24, 38, 0.35);
+    }
+
+    .back-link:hover {
+        color: #cdefff;
+        border-color: rgba(123, 215, 255, 0.8);
+        background: rgba(8, 24, 38, 0.55);
     }
 
     .settings-container h1 {

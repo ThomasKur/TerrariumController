@@ -3,7 +3,6 @@
 @using TerrariumController.Models
 @rendermode InteractiveServer
 @inject ILoggingService LoggingService
-@inject NavigationManager NavigationManager
 @inject ILogger<LogHistoryPage> Logger
 
 <PageTitle>Log History - Terrarium Controller</PageTitle>
@@ -11,7 +10,7 @@
 <div class="log-container">
     <div class="log-header">
         <h1>Log History</h1>
-        <button @onclick="GoBack" class="btn-back">← Back to Dashboard</button>
+        <a href="/" class="back-link" aria-label="Back to home page">Back to Home</a>
     </div>
 
     @if (LogEntries == null)
@@ -102,19 +101,22 @@
         color: #333;
     }
 
-    .btn-back {
-        padding: 0.75rem 1.5rem;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 1rem;
-        transition: background-color 0.3s;
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #7bd7ff;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid rgba(123, 215, 255, 0.45);
+        border-radius: 8px;
+        background: rgba(8, 24, 38, 0.35);
     }
 
-    .btn-back:hover {
-        background-color: #0056b3;
+    .back-link:hover {
+        color: #cdefff;
+        border-color: rgba(123, 215, 255, 0.8);
+        background: rgba(8, 24, 38, 0.55);
     }
 
     .log-controls {
@@ -306,8 +308,4 @@
         }
     }
 
-    private void GoBack()
-    {
-        NavigationManager.NavigateTo("/");
-    }
 }
