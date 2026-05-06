@@ -5,6 +5,8 @@ namespace TerrariumController.Services
     public interface IRelayCommandCoordinator
     {
         Task<bool> RequestRelayStateAsync(int relayId, bool state, string triggerSource, CancellationToken cancellationToken = default);
+        IReadOnlyDictionary<int, DateTime> GetActiveOverrides();
+        void CancelOverride(int relayId);
     }
 
     internal enum RelayCommandPriority
@@ -34,6 +36,7 @@ namespace TerrariumController.Services
         private readonly ILogger<RelayCommandCoordinator> _logger;
         private readonly IControlDiagnosticsService _diagnostics;
         private readonly Dictionary<int, (DateTime ExpiresAtUtc, string Source)> _manualOverrides = new();
+        private readonly object _overrideLock = new();
         private readonly RelayCommandCoordinatorOptions _options;
         private int _pendingCount;
 
@@ -100,7 +103,10 @@ namespace TerrariumController.Services
 
                     if (command.Priority == RelayCommandPriority.ManualOverride)
                     {
-                        _manualOverrides[command.RelayId] = (DateTime.UtcNow.Add(_options.ManualOverrideDuration), command.TriggerSource);
+                        lock (_overrideLock)
+                        {
+                            _manualOverrides[command.RelayId] = (DateTime.UtcNow.Add(_options.ManualOverrideDuration), command.TriggerSource);
+                        }
                     }
 
                     var latencyMs = (DateTime.UtcNow - command.EnqueuedAtUtc).TotalMilliseconds;
@@ -125,18 +131,40 @@ namespace TerrariumController.Services
 
         private bool ShouldBlockByManualOverride(RelayCommand command)
         {
-            if (!_manualOverrides.TryGetValue(command.RelayId, out var manualOverride))
+            lock (_overrideLock)
             {
-                return false;
-            }
+                if (!_manualOverrides.TryGetValue(command.RelayId, out var manualOverride))
+                {
+                    return false;
+                }
 
-            if (DateTime.UtcNow >= manualOverride.ExpiresAtUtc)
+                if (DateTime.UtcNow >= manualOverride.ExpiresAtUtc)
+                {
+                    _manualOverrides.Remove(command.RelayId);
+                    return false;
+                }
+
+                return command.Priority < RelayCommandPriority.ManualOverride;
+            }
+        }
+
+        public IReadOnlyDictionary<int, DateTime> GetActiveOverrides()
+        {
+            lock (_overrideLock)
             {
-                _manualOverrides.Remove(command.RelayId);
-                return false;
+                var now = DateTime.UtcNow;
+                return _manualOverrides
+                    .Where(kv => kv.Value.ExpiresAtUtc > now)
+                    .ToDictionary(kv => kv.Key, kv => kv.Value.ExpiresAtUtc);
             }
+        }
 
-            return command.Priority < RelayCommandPriority.ManualOverride;
+        public void CancelOverride(int relayId)
+        {
+            lock (_overrideLock)
+            {
+                _manualOverrides.Remove(relayId);
+            }
         }
 
         private static RelayCommandPriority MapPriority(string triggerSource)

@@ -118,6 +118,15 @@ internal sealed class RecordingRelayCommandCoordinator : IRelayCommandCoordinato
         Calls.Add((relayId, state, triggerSource));
         return Task.FromResult(true);
     }
+
+    public IReadOnlyDictionary<int, DateTime> GetActiveOverrides()
+    {
+        return new Dictionary<int, DateTime>();
+    }
+
+    public void CancelOverride(int relayId)
+    {
+    }
 }
 
 internal sealed class PollingSensorService : ISensorService

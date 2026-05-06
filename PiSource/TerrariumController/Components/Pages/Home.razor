@@ -7,6 +7,8 @@
 @inject ISettingsService SettingsService
 @inject IControlDiagnosticsService DiagnosticsService
 @inject IRuntimeHealthService RuntimeHealthService
+@inject IRelayCommandCoordinator RelayCommandCoordinator
+@inject IControlLoopSignal ControlLoopSignal
 @inject ILogger<Home> Logger
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -127,9 +129,27 @@
                         <div class="card-header">
                             <span class="pill">Relay 4</span>
                             <span class="label">Daylight Schedule</span>
+                            @if (GetOverrideExpiry(4) is DateTime relay4Expiry)
+                            {
+                                <span class="override-badge" role="status" aria-label="Relay 4 manual override active">Override @FormatRemainingTime(relay4Expiry)</span>
+                            }
                         </div>
                         <div class="schedule-status" role="status" aria-live="polite">
                             @(IsRelayOn(4) ? "Day mode" : "Night mode")
+                        </div>
+                        <div class="override-actions">
+                            @if (GetOverrideExpiry(4) is not null)
+                            {
+                                <button class="override-btn override-btn-cancel" @onclick="() => CancelRelay4Override()" aria-label="Cancel Relay 4 manual override">
+                                    Cancel Override
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="override-btn override-btn-on" @onclick="() => ForceRelay4On()" aria-label="Force Relay 4 on for 10 minutes">
+                                    Force ON 10 min
+                                </button>
+                            }
                         </div>
                     </div>
                 }
@@ -650,7 +670,54 @@
         }
     }
 
-    @@media (max-width: 768px) {
+    .override-badge {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(251, 191, 36, 0.15);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.4);
+        white-space: nowrap;
+    }
+
+    .override-actions {
+        margin-top: 8px;
+    }
+
+    .override-btn {
+        width: 100%;
+        padding: 7px 12px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .override-btn-on {
+        background: rgba(251, 191, 36, 0.18);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+
+    .override-btn-on:hover {
+        background: rgba(251, 191, 36, 0.3);
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+    }
+
+    .override-btn-cancel {
+        background: rgba(239, 68, 68, 0.14);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .override-btn-cancel:hover {
+        background: rgba(239, 68, 68, 0.24);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+    }
+
         .hero {
             display: flex;
             flex-direction: column;
@@ -690,6 +757,7 @@
     private Dictionary<int, double> Thresholds = new();
     private ControlDiagnosticsSnapshot ControlDiagnostics = new(DateTime.UtcNow, new Dictionary<int, SensorDiagnostic>(), new Dictionary<int, RelayDecisionDiagnostic>(), 0, 0);
     private RuntimeHealthSnapshot RuntimeHealth = new(false, false, false, null, "starting", DateTime.UtcNow);
+    private IReadOnlyDictionary<int, DateTime> ActiveOverrides = new Dictionary<int, DateTime>();
     private CancellationTokenSource? _refreshCts;
     private Task? _clockTask;
     private Task? _sensorRefreshTask;
@@ -754,6 +822,7 @@
             };
 
             RelayStates = await RelayService.GetAllRelayStatesAsync();
+            ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
             ControlDiagnostics = DiagnosticsService.GetSnapshot();
             RuntimeHealth = RuntimeHealthService.GetSnapshot();
             SensorLoadError = null;
@@ -815,6 +884,50 @@
     private bool IsRelayOn(int sensorId)
     {
         return RelayStates.TryGetValue(sensorId, out var state) && state;
+    }
+
+    private DateTime? GetOverrideExpiry(int relayId)
+    {
+        return ActiveOverrides.TryGetValue(relayId, out var expiry) ? expiry : null;
+    }
+
+    private static string FormatRemainingTime(DateTime expiresAtUtc)
+    {
+        var remaining = expiresAtUtc - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+            return "expiring";
+        return remaining.TotalSeconds < 60
+            ? $"{(int)remaining.TotalSeconds}s"
+            : $"{(int)remaining.TotalMinutes}m {remaining.Seconds:D2}s";
+    }
+
+    private async Task ForceRelay4On()
+    {
+        try
+        {
+            await RelayCommandCoordinator.RequestRelayStateAsync(4, true, "Manual Override");
+            ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
+            RelayStates = await RelayService.GetAllRelayStatesAsync();
+            ControlLoopSignal.RequestImmediateEvaluation("Manual Override Relay 4");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to apply manual override for Relay 4");
+        }
+    }
+
+    private async Task CancelRelay4Override()
+    {
+        try
+        {
+            RelayCommandCoordinator.CancelOverride(4);
+            ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
+            ControlLoopSignal.RequestImmediateEvaluation("Manual Override Cancelled Relay 4");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to cancel manual override for Relay 4");
+        }
     }
 
     private string GetThresholdDisplay(int sensorId)
