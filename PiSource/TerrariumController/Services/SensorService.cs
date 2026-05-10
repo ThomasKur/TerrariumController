@@ -22,6 +22,21 @@ namespace TerrariumController.Services
 
         // Last successful readings for fallback
         private static readonly Dictionary<int, SensorReading> LastValidReadings = new();
+        private static readonly Dictionary<int, SensorRuntime> SensorRuntimes = new();
+        private static readonly object SensorRuntimeSync = new();
+
+        private sealed class SensorRuntime
+        {
+            public int GpioPin { get; }
+            public Dht22 Sensor { get; }
+            public SemaphoreSlim ReadLock { get; } = new(1, 1);
+
+            public SensorRuntime(int gpioPin)
+            {
+                GpioPin = gpioPin;
+                Sensor = new Dht22(gpioPin, PinNumberingScheme.Logical);
+            }
+        }
 
         public SensorService(
             AppDbContext context,
@@ -114,23 +129,30 @@ namespace TerrariumController.Services
             try
             {
                 _logger.LogInformation("Reading DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}", sensorId, gpioPin);
-                
-                // Use BCM (logical) numbering; Settings use BCM pin numbers
-                using var dht = new Dht22(gpioPin, PinNumberingScheme.Logical);
 
-                // Try up to 3 times since DHT22 can be finicky
-                for (int attempt = 1; attempt <= 3; attempt++)
+                var runtime = GetOrCreateSensorRuntime(sensorId, gpioPin);
+                await runtime.ReadLock.WaitAsync();
+
+                try
                 {
-                    if (dht.TryReadTemperature(out var temperature) && dht.TryReadHumidity(out var humidity))
+                    // Try up to 3 times since DHT22 can be finicky
+                    for (int attempt = 1; attempt <= 3; attempt++)
                     {
-                        double tempC = temperature.DegreesCelsius;
-                        double humPct = humidity.Percent;
-                        _logger.LogInformation("DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}: T={Temperature:F1}°C, RH={Humidity:F1}% (attempt {Attempt})", sensorId, gpioPin, tempC, humPct, attempt);
-                        return (tempC, humPct);
-                    }
+                        if (runtime.Sensor.TryReadTemperature(out var temperature) && runtime.Sensor.TryReadHumidity(out var humidity))
+                        {
+                            double tempC = temperature.DegreesCelsius;
+                            double humPct = humidity.Percent;
+                            _logger.LogInformation("DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}: T={Temperature:F1}°C, RH={Humidity:F1}% (attempt {Attempt})", sensorId, gpioPin, tempC, humPct, attempt);
+                            return (tempC, humPct);
+                        }
 
-                    // Datasheet recommends at least 2 seconds between reads
-                    await Task.Delay(2000);
+                        // Datasheet recommends at least 2 seconds between reads.
+                        await Task.Delay(2000);
+                    }
+                }
+                finally
+                {
+                    runtime.ReadLock.Release();
                 }
 
                 _logger.LogWarning("DHT22 sensor {SensorId} on BCM GPIO {GpioPin} read failed after retries", sensorId, gpioPin);
@@ -140,6 +162,29 @@ namespace TerrariumController.Services
             {
                 _logger.LogError(ex, "Error communicating with DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}", sensorId, gpioPin);
                 return (null, null);
+            }
+        }
+
+        private SensorRuntime GetOrCreateSensorRuntime(int sensorId, int gpioPin)
+        {
+            lock (SensorRuntimeSync)
+            {
+                if (SensorRuntimes.TryGetValue(sensorId, out var existing))
+                {
+                    if (existing.GpioPin == gpioPin)
+                    {
+                        return existing;
+                    }
+
+                    existing.Sensor.Dispose();
+                    existing.ReadLock.Dispose();
+                    SensorRuntimes.Remove(sensorId);
+                    _logger.LogInformation("Recreating DHT22 runtime for Sensor {SensorId} after GPIO change to BCM {GpioPin}", sensorId, gpioPin);
+                }
+
+                var created = new SensorRuntime(gpioPin);
+                SensorRuntimes[sensorId] = created;
+                return created;
             }
         }
 
