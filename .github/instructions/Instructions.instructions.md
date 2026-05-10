@@ -9,14 +9,14 @@ Project guardrails:
 - Be careful with GPIO pin mappings; never change relay-to-GPIO assignments without explicit user approval.
 - Assume Raspberry Pi OS environment; avoid OS-specific commands that are not portable to Raspberry Pi unless requested.
 - When editing UI behavior, preserve the 1°C hysteresis and humidity lockout logic descriptions.
-- Keep README and user-facing text consistent with current system behavior (no promises of unimplemented features).
+- Keep README and user-facing text consistent with the latest committed system behavior (no promises of unimplemented features).
 - Do not add credentials, secrets, or device-specific tokens to examples.
 - When finishing then run:
   1. Run the build script first:
     - From repo root, execute `pwsh -File PiSource/install/build-for-pi.ps1`.
     - If build fails, stop and report the failure clearly. Do not create commits.
   2. Inspect git changes:
-    - Include tracked, modified, deleted, and untracked files.
+    - Include tracked, modified, deleted, and untracked files. Include as well when TerrariumController.dll is updated.
     - Stage with `git add -A`.
   3. Create commit(s):
     - If changes belong to one concern, create one commit.
