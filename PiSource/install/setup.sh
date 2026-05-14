@@ -178,7 +178,9 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
-# Create camera runner script using mjpeg-streamer
+# Create camera runner script using ffmpeg to serve MJPEG over HTTP
+# Modern Raspberry Pi OS (Bookworm+) does not include mjpeg-streamer.
+# This script uses ffmpeg to bridge rpicam-vid MJPEG stream to HTTP.
 echo "Creating camera runner script..."
 cat > /opt/terrarium/camera.sh << 'EOF'
 #!/bin/bash
@@ -190,11 +192,23 @@ HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
 STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
 
-# Use mjpeg-streamer with input from rpicam-vid piped to stdin.
-# input_fd.so is the plugin that consumes a live file descriptor stream.
-exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null | \
-mjpeg_streamer -i "input_fd.so -f /dev/stdin" -o "output_http.so -p $STREAM_PORT -w /usr/share/mjpeg-streamer/www" \
-    >> /opt/terrarium/logs/camera-stream.log 2>&1
+LOG_FILE="/opt/terrarium/logs/camera-stream.log"
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "$(date): ffmpeg not found. Install with: sudo apt install ffmpeg" >> "$LOG_FILE"
+    exit 1
+fi
+
+if ! command -v rpicam-vid >/dev/null 2>&1; then
+    echo "$(date): rpicam-vid not found. Install with: sudo apt install rpicam-apps" >> "$LOG_FILE"
+    exit 1
+fi
+
+# Use ffmpeg to serve MJPEG over HTTP on port 8080
+# The -http_server flag enables ffmpeg's built-in HTTP server for streaming
+exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>>/dev/null | \
+ffmpeg -f mjpeg -i pipe:0 -codec copy -f mpjpeg -http_server 1 -http_port "$STREAM_PORT" - \
+    >> "$LOG_FILE" 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
 chmod +x /opt/terrarium/camera.sh
@@ -212,8 +226,18 @@ fi
 
 # Install camera streaming tools
 echo "Installing Pi camera and streaming tools..."
-if ! apt install -y rpicam-apps ffmpeg mjpeg-streamer; then
-    echo -e "${YELLOW}Warning: camera tools installation failed (rpicam-apps not available)${NC}"
+# Install rpicam-apps and ffmpeg (mjpeg-streamer not available in modern Pi OS)
+if apt install -y rpicam-apps ffmpeg; then
+    echo -e "${GREEN}Camera tools installed${NC}"
+else
+    echo -e "${YELLOW}Warning: camera tools installation partially failed${NC}"
+    # Attempt to install them individually if the combined install fails
+    if ! apt install -y rpicam-apps; then
+        echo -e "${YELLOW}Warning: rpicam-apps not available (camera streaming may not work)${NC}"
+    fi
+    if ! apt install -y ffmpeg; then
+        echo -e "${YELLOW}Warning: ffmpeg not available (camera streaming may not work)${NC}"
+    fi
 fi
 
 echo "Installing Chromium browser for kiosk mode..."

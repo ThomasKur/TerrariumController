@@ -4,12 +4,13 @@ function startCameraStream() {
 
     const cameraPort = 8080;
     const protocol = window.location.protocol === 'https:' ? 'http:' : window.location.protocol;
-    const streamUrl = `${protocol}//${window.location.hostname}:${cameraPort}/?action=stream`;
+    // ffmpeg MJPEG server serves stream at root path
+    const streamUrl = `${protocol}//${window.location.hostname}:${cameraPort}/`;
 
     // Reconnect the MJPEG stream if the backend camera service restarts.
     img.onerror = () => {
         setTimeout(() => {
-            img.src = `${streamUrl}&ts=${Date.now()}`;
+            img.src = `${streamUrl}?ts=${Date.now()}`;
         }, 3000);
     };
 

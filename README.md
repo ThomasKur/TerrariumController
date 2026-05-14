@@ -75,7 +75,7 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    ```
    This installs:
    - GPIO libraries
-   - rpicam-apps and mjpg-streamer for camera streaming
+   - rpicam-apps and ffmpeg for camera streaming
    - Systemd service units (`terrarium` and `terrarium-camera`)
    - Chromium kiosk launcher
 
@@ -137,10 +137,17 @@ sudo systemctl restart terrarium
 
 **Camera not streaming**:
 ```bash
-# Check mjpg-streamer is running
-ps aux | grep mjpg
-# Test camera manually
-rpicam-hello -t 5
+# Check if camera service is running
+systemctl status terrarium-camera
+
+# Check camera can be accessed
+rpicam-hello -t 1
+
+# View camera service logs
+sudo journalctl -u terrarium-camera -f -n 50
+
+# Test manual MJPEG stream (ffmpeg required)
+rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg
 ```
 
 **Database corrupted**:
@@ -162,7 +169,7 @@ The Blazor Server app exposes:
 - `GET /` - Dashboard (two-row control panel)
 - `GET /settings` - Settings page (thresholds, schedules, retention, GPIO config, DB compact)
 - `GET /log-history` - Log history with pagination and filtering
-- `http://localhost:8080/?action=stream` - MJPEG camera feed (via mjpg-streamer)
+- `http://localhost:8080/` - MJPEG camera feed (via ffmpeg and rpicam-vid)
 
 SignalR hub (optional, for future real-time integrations):
 - Hub URL: `/sensorHub` (for WebSocket updates)
