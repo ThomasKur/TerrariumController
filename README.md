@@ -114,7 +114,12 @@ All settings are stored in SQLite and managed via the web UI:
 - **Humidity Threshold**: Sensor 1 humidity threshold for Relay 5 (default 60%)
 - **Schedules**: Daylight on/off times for Relay 4
 - **GPIO Map**: Customize relay-to-GPIO pin assignments (default PiRelay 6 mapping)
-- **Camera Params**: MJPEG streamer width, height, and framerate (defaults 1280x720@15fps)
+- **Camera Params**: MJPEG stream resolution and framerate. Can be adjusted via environment variables:
+  - `CAMERA_WIDTH=1920` (default, Full HD)
+  - `CAMERA_HEIGHT=1080` (default, Full HD)
+  - `CAMERA_FPS=15` (default)
+  
+  To change, edit `/etc/terrarium/terrarium.env` and restart: `sudo systemctl restart terrarium-camera`
 - **Log Retention**: Delete entries older than N months (1-24, default 12)
 
 ### Log Access
@@ -154,14 +159,34 @@ sudo apt install rpicam-apps -y
 # Verify camera hardware is accessible
 rpicam-hello -t 1
 
-# Test camera stream manually
-rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg
+# Test camera stream manually (Full HD)
+rpicam-vid --codec mjpeg -t 5 --width 1920 --height 1080 --framerate 15 -o /tmp/test.mjpeg
+
+# Or test at lower resolution
+rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test-low.mjpeg
 
 # Test HTTP access to camera stream
 curl -v http://localhost:8080/ 2>&1 | head -10
 
 # After installing dependencies, restart the camera service
 sudo systemctl restart terrarium-camera
+```
+
+**Customize camera resolution**:
+```bash
+# Edit the environment configuration
+sudo nano /etc/terrarium/terrarium.env
+
+# Change these lines to desired resolution (default is Full HD 1920x1080):
+# CAMERA_WIDTH=1920
+# CAMERA_HEIGHT=1080
+# CAMERA_FPS=15
+
+# Save and restart camera service
+sudo systemctl restart terrarium-camera
+
+# Verify stream is working at new resolution
+curl -v http://localhost:8080/ 2>&1 | head -10
 ```
 
 **Database corrupted**:

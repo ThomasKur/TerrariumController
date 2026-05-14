@@ -150,8 +150,8 @@ if [ ! -f /etc/terrarium/terrarium.env ]; then
 # Terrarium Controller environment configuration
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ASPNETCORE_ENVIRONMENT=Production
-CAMERA_WIDTH=640
-CAMERA_HEIGHT=480
+CAMERA_WIDTH=1920
+CAMERA_HEIGHT=1080
 CAMERA_FPS=15
 CAMERA_STREAM_PORT=8080
 EOF
