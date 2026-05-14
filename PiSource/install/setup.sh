@@ -332,26 +332,21 @@ echo "Re-running setup.sh..."
 bash "\$INSTALL_DIR/setup.sh"
 EOF
 
-    cat > "$DESKTOP_DIR/start-kiosk.sh" << EOF
-#!/bin/bash
-set -e
-
-INSTALL_DIR="$SCRIPT_DIR"
-exec /bin/bash "\$INSTALL_DIR/start-kiosk.sh" "http://localhost:5000"
-EOF
-
     cat > "$DESKTOP_DIR/start-kiosk.desktop" << EOF
 [Desktop Entry]
 Type=Application
 Name=Start Kiosk Mode
-Exec=/bin/bash -lc '"$DESKTOP_DIR/start-kiosk.sh"'
+Exec=/bin/bash -lc 'KIOSK_WAIT_SECONDS=15 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"'
 Icon=applications-internet
 Terminal=false
 Categories=Network;
 EOF
 
-    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
-    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+
+    # Remove stale launcher wrapper from previous setup runs.
+    rm -f "$DESKTOP_DIR/start-kiosk.sh"
 
     echo "Created desktop launchers for user: $TARGET_USER"
 done
