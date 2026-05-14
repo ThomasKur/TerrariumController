@@ -13,7 +13,7 @@ Logging records all relay state changes with the sensor values that triggered th
 
 ## Setup
 
-Initial setup configures the application to auto-start in full-screen (kiosk) mode. The installer installs GPIO libraries, rpicam/libcamera tools, and mjpg-streamer for live camera streaming. See [Deployment](#deployment) section below.
+Initial setup configures the application to auto-start in full-screen (kiosk) mode. The installer installs GPIO libraries, rpicam-apps, and mjpg-streamer for live camera streaming. See [Deployment](#deployment) section below.
 
 ## Required Parts
 
@@ -75,7 +75,7 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    ```
    This installs:
    - GPIO libraries
-   - rpicam/libcamera tools and mjpg-streamer for camera streaming
+   - rpicam-apps and mjpg-streamer for camera streaming
    - Systemd service units (`terrarium` and `terrarium-camera`)
    - Chromium kiosk launcher
 

@@ -212,10 +212,7 @@ fi
 # Install camera streaming tools
 echo "Installing Pi camera and streaming tools..."
 if ! apt install -y rpicam-apps ffmpeg mjpeg-streamer; then
-    echo -e "${YELLOW}Warning: rpicam-apps install failed, trying legacy libcamera package names...${NC}"
-    if ! apt install -y libcamera-tools libcamera-apps ffmpeg mjpeg-streamer; then
-        echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
-    fi
+    echo -e "${YELLOW}Warning: camera tools installation failed (rpicam-apps not available)${NC}"
 fi
 
 echo "Installing Chromium browser for kiosk mode..."
