@@ -190,9 +190,10 @@ HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
 STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
 
-# Use mjpeg-streamer with input from rpicam-vid piped to file descriptor
+# Use mjpeg-streamer with input from rpicam-vid piped to stdin.
+# input_fd.so is the plugin that consumes a live file descriptor stream.
 exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null | \
-mjpeg_streamer -i "input_file.so -f /dev/stdin" -o "output_http.so -p $STREAM_PORT -w /usr/share/mjpeg-streamer/www" \
+mjpeg_streamer -i "input_fd.so -f /dev/stdin" -o "output_http.so -p $STREAM_PORT -w /usr/share/mjpeg-streamer/www" \
     >> /opt/terrarium/logs/camera-stream.log 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
@@ -490,7 +491,7 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
             exit 1
         fi
         
-        # Check if port 5000 is listening
+        # Check if app and camera ports are listening
         echo ""
         echo "Network status:"
         if command -v netstat >/dev/null 2>&1; then
@@ -500,10 +501,20 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
             ss -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
             ss -tlnp | grep :8080 || echo -e "${YELLOW}Port 8080 (camera stream) not yet listening${NC}"
         fi
-        
-        # Try to connect to the service
+
+        # Try to connect to app and camera services
         echo ""
         if command -v curl >/dev/null 2>&1; then
+            CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-8080}/?action=snapshot"
+            if curl -fsS --connect-timeout 5 --max-time 10 "$CAMERA_URL" >/dev/null 2>&1; then
+                echo -e "${GREEN}✓ Camera endpoint responded${NC}"
+            else
+                echo -e "${RED}✗ Camera endpoint did not respond${NC}"
+                echo "Camera service logs:"
+                journalctl -u terrarium-camera -n 20 --no-pager
+                exit 1
+            fi
+
             echo "Testing health endpoints..."
 
             HEALTH_OK=false
