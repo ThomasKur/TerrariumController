@@ -220,41 +220,37 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
     # Create Python HTTP server wrapper for MJPEG streaming
     # This reads MJPEG from rpicam-vid and serves it via HTTP
     python3 << 'PYTHON'
-import socket
+import os
 import sys
+import socket
 import subprocess
 from threading import Thread
 
-stream_port = int(os.environ.get('STREAM_PORT', 8080))
-width = os.environ.get('CAMERA_WIDTH', 640)
-height = os.environ.get('CAMERA_HEIGHT', 480)
-fps = os.environ.get('CAMERA_FPS', 15)
-
-os.environ.setdefault('STREAM_PORT', '8080')
-stream_port = int(os.environ['STREAM_PORT'])
-width = int(os.environ.get('CAMERA_WIDTH', 640))
-height = int(os.environ.get('CAMERA_HEIGHT', 480))
-fps = int(os.environ.get('CAMERA_FPS', 15))
+# Get configuration from environment variables
+stream_port = int(os.environ.get('STREAM_PORT', '8080'))
+width = int(os.environ.get('CAMERA_WIDTH', '640'))
+height = int(os.environ.get('CAMERA_HEIGHT', '480'))
+fps = int(os.environ.get('CAMERA_FPS', '15'))
 
 def run_camera_stream():
-    # Start rpicam-vid to generate MJPEG stream
+    """Start rpicam-vid to generate MJPEG stream"""
     camera_cmd = [
         'rpicam-vid',
         '--codec', 'mjpeg',
-        '-t', '0',  # Run indefinitely
-        '-n',  # No preview
+        '-t', '0',
+        '-n',
         '--width', str(width),
         '--height', str(height),
         '--framerate', str(fps),
-        '-o', '-'  # Output to stdout
+        '-o', '-'
     ]
-    
     camera_process = subprocess.Popen(camera_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return camera_process
 
 def handle_http_request(client_socket, camera_stream):
+    """Handle incoming HTTP request and stream MJPEG data"""
     try:
-        # Send HTTP headers
+        # Send HTTP headers for MJPEG stream
         http_header = b'HTTP/1.0 200 OK\r\n'
         http_header += b'Content-Type: multipart/x-mixed-replace; boundary=--gc0p4Jq4\r\n'
         http_header += b'Connection: close\r\n'
@@ -264,7 +260,7 @@ def handle_http_request(client_socket, camera_stream):
         
         client_socket.sendall(http_header)
         
-        # Stream MJPEG data
+        # Stream MJPEG data in chunks
         chunk_size = 65536
         while True:
             data = camera_stream.stdout.read(chunk_size)
@@ -276,8 +272,6 @@ def handle_http_request(client_socket, camera_stream):
     finally:
         client_socket.close()
 
-import os
-
 # Start camera stream process
 camera_proc = run_camera_stream()
 
@@ -288,6 +282,7 @@ server_socket.bind(('0.0.0.0', stream_port))
 server_socket.listen(5)
 
 print(f"MJPEG server listening on port {stream_port}")
+sys.stdout.flush()
 
 try:
     while True:
