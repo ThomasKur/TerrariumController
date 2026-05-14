@@ -1,0 +1,441 @@
+@page "/diagnostics"
+@using TerrariumController.Services
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IControlDiagnosticsService DiagnosticsService
+@inject IRelayCommandCoordinator RelayCommandCoordinator
+@inject IRelayService RelayService
+@inject IControlLoopSignal ControlLoopSignal
+@inject ILogger<Diagnostics> Logger
+
+<PageTitle>Control Diagnostics</PageTitle>
+
+<div class="diagnostics-container">
+    <div class="page-actions">
+        <a href="/" class="back-link" aria-label="Back to home page">Back to Home</a>
+    </div>
+
+    <h1>Control Diagnostics</h1>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="label">Snapshot (UTC)</div>
+            <div class="value">@Snapshot.SnapshotUtc.ToString("yyyy-MM-dd HH:mm:ss")</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Relay Queue Depth</div>
+            <div class="value">@Snapshot.QueueDepth</div>
+        </div>
+        <div class="summary-card">
+            <div class="label">Last Command Latency</div>
+            <div class="value">@Snapshot.LastCommandLatencyMs.ToString("F1") ms</div>
+        </div>
+    </div>
+
+    <section class="panel">
+        <h2>Sensors</h2>
+        <div class="status-legend" role="note" aria-label="Sensor status legend">
+            <h3>Status Legend</h3>
+            <ul>
+                <li><span class="legend-chip legend-valid">valid</span> Current sensor read succeeded. Relay decisions use this reading.</li>
+                <li><span class="legend-chip legend-invalid">invalid-preserve</span> Current read failed, but a recent valid read exists. Relay state is preserved.</li>
+                <li><span class="legend-chip legend-failsafe">stale-failsafe</span> Current read failed and no recent valid read exists. Safety fallback forces relay OFF.</li>
+            </ul>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Sensor</th>
+                    <th>Status</th>
+                    <th>Timestamp (UTC)</th>
+                    <th>Temp</th>
+                    <th>Humidity</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sensor in Snapshot.Sensors.Values.OrderBy(s => s.SensorId))
+                {
+                    <tr>
+                        <td>@sensor.SensorId</td>
+                        <td>@sensor.Status</td>
+                        <td>@sensor.LastTimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@(sensor.Temperature?.ToString("F1") ?? "--")</td>
+                        <td>@(sensor.Humidity?.ToString("F0") ?? "--")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Relay Decisions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Relay</th>
+                    <th>Target</th>
+                    <th>Applied</th>
+                    <th>Reason</th>
+                    <th>Cycle</th>
+                    <th>Timestamp (UTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var relay in Snapshot.Relays.Values.OrderBy(r => r.RelayId))
+                {
+                    <tr>
+                        <td>@relay.RelayId</td>
+                        <td>@(relay.TargetState ? "ON" : "OFF")</td>
+                        <td>@relay.Applied</td>
+                        <td>@relay.Reason</td>
+                        <td>@relay.CycleId</td>
+                        <td>@relay.LastDecisionUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Manual Relay Overrides</h2>
+        <p class="override-hint">Force any relay ON for 10 minutes, overriding scheduled and sensor-driven control. The control loop will restore the normal state after the override expires.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Relay</th>
+                    <th>Override Status</th>
+                    <th>Expires (UTC)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (int r = 1; r <= 6; r++)
+                {
+                    var relayId = r;
+                    var expiry = GetOverrideExpiry(relayId);
+                    <tr>
+                        <td>Relay @relayId</td>
+                        <td>
+                            @if (expiry.HasValue)
+                            {
+                                <span class="override-chip override-active">Active (@FormatRemainingTime(expiry.Value))</span>
+                            }
+                            else
+                            {
+                                <span class="override-chip override-none">None</span>
+                            }
+                        </td>
+                        <td>@(expiry.HasValue ? expiry.Value.ToString("HH:mm:ss") : "--")</td>
+                        <td class="override-cell">
+                            @if (expiry.HasValue)
+                            {
+                                <button class="diag-btn diag-btn-cancel" @onclick="() => CancelOverride(relayId)" aria-label="Cancel override for Relay @relayId">
+                                    Cancel
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="diag-btn diag-btn-on" @onclick="() => ForceRelayOn(relayId)" aria-label="Force Relay @relayId on for 10 minutes">
+                                    Force ON 10 min
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+</div>
+
+<style>
+    .diagnostics-container {
+        max-width: 1100px;
+        margin: 1rem auto;
+        padding: 1rem;
+        color: #e7edf7;
+    }
+
+    .page-actions {
+        margin-bottom: 0.75rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #7bd7ff;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid rgba(123, 215, 255, 0.45);
+        border-radius: 8px;
+        background: rgba(8, 24, 38, 0.35);
+    }
+
+    .back-link:hover {
+        color: #cdefff;
+        border-color: rgba(123, 215, 255, 0.8);
+        background: rgba(8, 24, 38, 0.55);
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .summary-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 10px;
+        padding: 0.75rem;
+    }
+
+    .summary-card .label {
+        font-size: 0.85rem;
+        color: #a6b3c9;
+    }
+
+    .summary-card .value {
+        font-weight: 700;
+        margin-top: 0.25rem;
+    }
+
+    .panel {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+    }
+
+    .status-legend {
+        margin-bottom: 0.85rem;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        background: rgba(11, 16, 24, 0.45);
+    }
+
+    .status-legend h3 {
+        margin: 0 0 0.45rem 0;
+        font-size: 0.95rem;
+        color: #cfe6ff;
+    }
+
+    .status-legend ul {
+        margin: 0;
+        padding-left: 1.1rem;
+    }
+
+    .status-legend li {
+        margin: 0.35rem 0;
+        line-height: 1.35;
+    }
+
+    .legend-chip {
+        display: inline-block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        font-size: 0.8rem;
+        padding: 0.05rem 0.4rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        margin-right: 0.3rem;
+        white-space: nowrap;
+    }
+
+    .legend-valid {
+        color: #bbf7d0;
+        background: rgba(34, 197, 94, 0.16);
+        border-color: rgba(34, 197, 94, 0.45);
+    }
+
+    .legend-invalid {
+        color: #fde68a;
+        background: rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.45);
+    }
+
+    .legend-failsafe {
+        color: #fecaca;
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.45);
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    th, td {
+        text-align: left;
+        padding: 0.45rem 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        white-space: nowrap;
+    }
+
+    th {
+        color: #7bd7ff;
+        font-weight: 700;
+    }
+
+    .override-hint {
+        font-size: 0.85rem;
+        color: #a6b3c9;
+        margin: 0 0 0.75rem 0;
+    }
+
+    .override-chip {
+        display: inline-block;
+        font-size: 0.8rem;
+        padding: 0.05rem 0.5rem;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        white-space: nowrap;
+    }
+
+    .override-active {
+        color: #fde68a;
+        background: rgba(251, 191, 36, 0.15);
+        border-color: rgba(251, 191, 36, 0.45);
+    }
+
+    .override-none {
+        color: #8ea0bd;
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .override-cell {
+        white-space: nowrap;
+    }
+
+    .diag-btn {
+        padding: 0.3rem 0.75rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .diag-btn-on {
+        background: rgba(251, 191, 36, 0.18);
+        color: #fbbf24;
+        border: 1px solid rgba(251, 191, 36, 0.4);
+    }
+
+    .diag-btn-on:hover {
+        background: rgba(251, 191, 36, 0.3);
+        box-shadow: 0 2px 8px rgba(251, 191, 36, 0.2);
+    }
+
+    .diag-btn-cancel {
+        background: rgba(239, 68, 68, 0.14);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .diag-btn-cancel:hover {
+        background: rgba(239, 68, 68, 0.24);
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+    }
+</style>
+
+@code {
+    private ControlDiagnosticsSnapshot Snapshot = new(DateTime.UtcNow, new Dictionary<int, SensorDiagnostic>(), new Dictionary<int, RelayDecisionDiagnostic>(), 0, 0);
+    private IReadOnlyDictionary<int, DateTime> ActiveOverrides = new Dictionary<int, DateTime>();
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    protected override Task OnInitializedAsync()
+    {
+        Refresh();
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+        _ = Task.Run(() => RunRefreshLoopAsync(_cts.Token));
+        return Task.CompletedTask;
+    }
+
+    private async Task RunRefreshLoopAsync(CancellationToken cancellationToken)
+    {
+        if (_timer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(() =>
+                {
+                    Refresh();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void Refresh()
+    {
+        Snapshot = DiagnosticsService.GetSnapshot();
+        ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
+    }
+
+    private DateTime? GetOverrideExpiry(int relayId)
+    {
+        return ActiveOverrides.TryGetValue(relayId, out var expiry) ? expiry : null;
+    }
+
+    private static string FormatRemainingTime(DateTime expiresAtUtc)
+    {
+        var remaining = expiresAtUtc - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+            return "expiring";
+        return remaining.TotalSeconds < 60
+            ? $"{(int)remaining.TotalSeconds}s"
+            : $"{(int)remaining.TotalMinutes}m {remaining.Seconds:D2}s";
+    }
+
+    private async Task ForceRelayOn(int relayId)
+    {
+        try
+        {
+            await RelayCommandCoordinator.RequestRelayStateAsync(relayId, true, "Manual Override");
+            ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
+            ControlLoopSignal.RequestImmediateEvaluation($"Manual Override Relay {relayId}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to apply manual override for Relay {RelayId}", relayId);
+        }
+    }
+
+    private void CancelOverride(int relayId)
+    {
+        try
+        {
+            RelayCommandCoordinator.CancelOverride(relayId);
+            ActiveOverrides = RelayCommandCoordinator.GetActiveOverrides();
+            ControlLoopSignal.RequestImmediateEvaluation($"Manual Override Cancelled Relay {relayId}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to cancel manual override for Relay {RelayId}", relayId);
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+    }
+}

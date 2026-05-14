@@ -13,7 +13,7 @@ public class HumidityServiceTests
     public async Task CheckAndApplyHumidityLockoutAsync_TriggersPulseAndLocksWhenBelowThreshold()
     {
         await using var context = CreateContext();
-        var relayService = new RecordingRelayService();
+        var relayCoordinator = new RecordingRelayCommandCoordinator();
         var settingsService = new TestSettingsService(new Settings
         {
             Sensor1HumidityThreshold = 60.0,
@@ -21,16 +21,16 @@ public class HumidityServiceTests
         });
         var service = new HumidityService(
             context,
-            relayService,
+            relayCoordinator,
             settingsService,
             new NoOpLoggingService(),
             NullLogger<HumidityService>.Instance);
 
         await service.CheckAndApplyHumidityLockoutAsync(1, 50.0);
 
-        Assert.Equal(2, relayService.Calls.Count);
-        Assert.Equal((5, true, "Humidity Threshold"), relayService.Calls[0]);
-        Assert.Equal((5, false, "Humidity Pulse Complete"), relayService.Calls[1]);
+        Assert.Equal(2, relayCoordinator.Calls.Count);
+        Assert.Equal((5, true, "Humidity Threshold"), relayCoordinator.Calls[0]);
+        Assert.Equal((5, false, "Humidity Pulse Complete"), relayCoordinator.Calls[1]);
 
         var state = await context.HumidityLockoutStates.FirstOrDefaultAsync(s => s.SensorId == 1);
         Assert.NotNull(state);
@@ -50,7 +50,7 @@ public class HumidityServiceTests
         });
         await context.SaveChangesAsync();
 
-        var relayService = new RecordingRelayService();
+        var relayCoordinator = new RecordingRelayCommandCoordinator();
         var settingsService = new TestSettingsService(new Settings
         {
             Sensor1HumidityThreshold = 60.0,
@@ -58,14 +58,14 @@ public class HumidityServiceTests
         });
         var service = new HumidityService(
             context,
-            relayService,
+            relayCoordinator,
             settingsService,
             new NoOpLoggingService(),
             NullLogger<HumidityService>.Instance);
 
         await service.CheckAndApplyHumidityLockoutAsync(1, 40.0);
 
-        Assert.Empty(relayService.Calls);
+        Assert.Empty(relayCoordinator.Calls);
     }
 
     private static AppDbContext CreateContext()

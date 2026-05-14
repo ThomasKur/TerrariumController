@@ -48,6 +48,41 @@ contains_user() {
     return 1
 }
 
+print_readyz_details() {
+    local readyz_output="$1"
+
+    if [ -z "$readyz_output" ]; then
+        echo "  (no readiness payload returned)"
+        return
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        READYZ_OUTPUT="$readyz_output" python3 - <<'PY'
+import json
+import os
+
+payload = os.environ.get("READYZ_OUTPUT", "")
+try:
+    data = json.loads(payload)
+except Exception:
+    print(payload)
+    raise SystemExit(0)
+
+print(f"  ready: {'yes' if data.get('isReady') else 'no'}")
+print(f"  databaseReady: {data.get('databaseReady')}")
+print(f"  gpioReady: {data.get('gpioReady')}")
+print(f"  controlLoopStarted: {data.get('controlLoopStarted')}")
+print(f"  lastSuccessfulCycleUtc: {data.get('lastSuccessfulCycleUtc')}")
+print(f"  lastCycleStatus: {data.get('lastCycleStatus')}")
+print(f"  snapshotUtc: {data.get('snapshotUtc')}")
+PY
+        return
+    fi
+
+    echo "$readyz_output" | sed 's/[{}]//g; s/,/\
+/g; s/"//g; s/^/  /'
+}
+
 build_target_users() {
     TARGET_USERS=("pi" "terrarium")
     local active_user="${SUDO_USER:-$(logname 2>/dev/null || true)}"
@@ -108,6 +143,23 @@ mkdir -p /opt/terrarium/logs
 chown terrarium:terrarium /opt/terrarium
 chown terrarium:terrarium /opt/terrarium/logs
 
+echo "Creating service environment file..."
+mkdir -p /etc/terrarium
+if [ ! -f /etc/terrarium/terrarium.env ]; then
+    cat > /etc/terrarium/terrarium.env << 'EOF'
+# Terrarium Controller environment configuration
+ASPNETCORE_URLS=http://0.0.0.0:5000
+ASPNETCORE_ENVIRONMENT=Production
+CAMERA_WIDTH=640
+CAMERA_HEIGHT=480
+CAMERA_FPS=15
+CAMERA_STREAM_PORT=8080
+EOF
+    echo "Created /etc/terrarium/terrarium.env"
+else
+    echo "Keeping existing /etc/terrarium/terrarium.env"
+fi
+
 # Create app launcher script to handle self-contained or framework-dependent deployments
 echo "Creating app launcher script..."
 cat > /opt/terrarium/run.sh << 'EOF'
@@ -136,10 +188,11 @@ mkdir -p /opt/terrarium/logs
 WIDTH=${CAMERA_WIDTH:-640}
 HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
+STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
 
 # Use mjpeg-streamer with input from rpicam-vid piped to file descriptor
 exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null | \
-mjpeg_streamer -i "input_file.so -f /dev/stdin" -o "output_http.so -p 8080 -w /usr/share/mjpeg-streamer/www" \
+mjpeg_streamer -i "input_file.so -f /dev/stdin" -o "output_http.so -p $STREAM_PORT -w /usr/share/mjpeg-streamer/www" \
     >> /opt/terrarium/logs/camera-stream.log 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
@@ -157,22 +210,24 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
 fi
 
 # Install camera streaming tools
-echo "Installing libcamera tools and ffmpeg..."
-if ! apt install -y libcamera-tools libcamera-apps ffmpeg mjpeg-streamer; then
-    echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
+echo "Installing Pi camera and streaming tools..."
+if ! apt install -y rpicam-apps ffmpeg mjpeg-streamer; then
+    echo -e "${YELLOW}Warning: camera tools installation failed (rpicam-apps not available)${NC}"
+fi
+
+echo "Installing Chromium browser for kiosk mode..."
+if ! apt install -y chromium-browser; then
+    echo -e "${YELLOW}Warning: chromium-browser installation failed, trying chromium...${NC}"
+    if ! apt install -y chromium; then
+        echo -e "${YELLOW}Warning: Chromium installation failed. Kiosk mode may not start until Chromium is installed.${NC}"
+    fi
 fi
 
 # Verify camera is accessible
-if [ -c /dev/video0 ]; then
-    echo -e "${GREEN}Camera device /dev/video0 detected${NC}"
-    # Test if camera works with rpicam
-    if timeout 3 rpicam-hello 2>/dev/null | head -1 | grep -q "Camera"; then
-        echo -e "${GREEN}rpicam tools found and camera is accessible${NC}"
-    else
-        echo -e "${YELLOW}Warning: rpicam test inconclusive; verify with: rpicam-hello${NC}"
-    fi
+if timeout 3 rpicam-hello 2>/dev/null | head -1 | grep -q "Camera"; then
+    echo -e "${GREEN}rpicam tools found and camera is accessible${NC}"
 else
-    echo -e "${YELLOW}Warning: Camera device /dev/video0 not found${NC}"
+    echo -e "${YELLOW}Warning: rpicam test inconclusive; verify with: rpicam-hello${NC}"
 fi
 
 echo "Test command to verify camera stream:"
@@ -185,8 +240,16 @@ if [ ! -f "$SCRIPT_DIR/terrarium.service" ]; then
     exit 1
 fi
 cp "$SCRIPT_DIR/terrarium.service" /etc/systemd/system/
+
+if [ ! -f "$SCRIPT_DIR/terrarium-camera.service" ]; then
+    echo -e "${RED}Error: terrarium-camera.service not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+cp "$SCRIPT_DIR/terrarium-camera.service" /etc/systemd/system/
+
 systemctl daemon-reload
 systemctl enable terrarium
+systemctl enable terrarium-camera
 
 # Create kiosk autostart script(s)
 echo "Creating Chromium kiosk launcher..."
@@ -269,26 +332,21 @@ echo "Re-running setup.sh..."
 bash "\$INSTALL_DIR/setup.sh"
 EOF
 
-    cat > "$DESKTOP_DIR/start-kiosk.sh" << EOF
-#!/bin/bash
-set -e
-
-INSTALL_DIR="$SCRIPT_DIR"
-exec /bin/bash "\$INSTALL_DIR/start-kiosk.sh" "http://localhost:5000"
-EOF
-
     cat > "$DESKTOP_DIR/start-kiosk.desktop" << EOF
 [Desktop Entry]
 Type=Application
 Name=Start Kiosk Mode
-Exec=/bin/bash -lc '"$DESKTOP_DIR/start-kiosk.sh"'
+Exec=/bin/bash -lc 'KIOSK_WAIT_SECONDS=15 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"'
 Icon=applications-internet
 Terminal=false
 Categories=Network;
 EOF
 
-    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
-    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+
+    # Remove stale launcher wrapper from previous setup runs.
+    rm -f "$DESKTOP_DIR/start-kiosk.sh"
 
     echo "Created desktop launchers for user: $TARGET_USER"
 done
@@ -432,12 +490,43 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         # Try to connect to the service
         echo ""
         if command -v curl >/dev/null 2>&1; then
-            echo "Testing connection..."
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:5000 --connect-timeout 5 --max-time 10 | grep -q "200\|302"; then
-                echo -e "${GREEN}✓ Service is responding on port 5000${NC}"
+            echo "Testing health endpoints..."
+
+            HEALTH_OK=false
+            READY_OK=false
+
+            for attempt in $(seq 1 12); do
+                if curl -fsS http://localhost:5000/healthz --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+                    HEALTH_OK=true
+                    echo -e "${GREEN}✓ Liveness endpoint responded${NC}"
+                    break
+                fi
+                sleep 2
+            done
+
+            for attempt in $(seq 1 20); do
+                if curl -fsS http://localhost:5000/readyz --connect-timeout 5 --max-time 10 >/dev/null 2>&1; then
+                    READY_OK=true
+                    echo -e "${GREEN}✓ Readiness endpoint responded${NC}"
+                    break
+                fi
+                sleep 2
+            done
+
+            if [ "$HEALTH_OK" = false ]; then
+                echo -e "${RED}✗ Liveness endpoint did not respond${NC}"
+                journalctl -u terrarium -n 20 --no-pager
+                exit 1
+            fi
+
+            if [ "$READY_OK" = false ]; then
+                echo -e "${YELLOW}⚠ Service is alive but not ready yet${NC}"
+                echo "Readiness details:"
+                READYZ_OUTPUT=$(curl -sS http://localhost:5000/readyz || true)
+                print_readyz_details "$READYZ_OUTPUT"
             else
-                echo -e "${YELLOW}⚠ Service started but not responding yet (may still be initializing)${NC}"
-                echo "Wait 10 seconds and try: curl http://localhost:5000"
+                echo "Application root check:"
+                curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:5000 --connect-timeout 5 --max-time 10 || true
             fi
         fi
     else

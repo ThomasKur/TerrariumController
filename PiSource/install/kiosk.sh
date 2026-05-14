@@ -3,12 +3,29 @@ set -e
 
 URL="${1:-http://localhost:5000}"
 
-if [ -x "/usr/bin/chromium" ]; then
-	CHROMIUM_BIN="/usr/bin/chromium"
-elif [ -x "/usr/bin/chromium-browser" ]; then
-	CHROMIUM_BIN="/usr/bin/chromium-browser"
+find_chromium_bin() {
+	local candidate
+
+	for candidate in \
+		"/usr/bin/chromium" \
+		"/usr/bin/chromium-browser" \
+		"$(command -v chromium 2>/dev/null || true)" \
+		"$(command -v chromium-browser 2>/dev/null || true)" \
+		"$(command -v google-chrome 2>/dev/null || true)" \
+		"$(command -v google-chrome-stable 2>/dev/null || true)"; do
+		if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+			echo "$candidate"
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+if CHROMIUM_BIN="$(find_chromium_bin)"; then
+	echo "Using browser binary: $CHROMIUM_BIN"
 else
-	echo "Chromium not found. Install with: sudo apt install chromium-browser"
+	echo "Chromium/Chrome not found. Install with: sudo apt install chromium-browser"
 	exit 1
 fi
 

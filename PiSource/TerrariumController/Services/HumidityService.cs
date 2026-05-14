@@ -13,17 +13,17 @@ namespace TerrariumController.Services
     public class HumidityService : IHumidityService
     {
         private readonly AppDbContext _context;
-        private readonly IRelayService _relayService;
+        private readonly IRelayCommandCoordinator _relayCommandCoordinator;
         private readonly ISettingsService _settingsService;
         private readonly ILoggingService _loggingService;
         private readonly ILogger<HumidityService> _logger;
 
-        public HumidityService(AppDbContext context, IRelayService relayService,
+        public HumidityService(AppDbContext context, IRelayCommandCoordinator relayCommandCoordinator,
             ISettingsService settingsService, ILoggingService loggingService,
             ILogger<HumidityService> logger)
         {
             _context = context;
-            _relayService = relayService;
+            _relayCommandCoordinator = relayCommandCoordinator;
             _settingsService = settingsService;
             _loggingService = loggingService;
             _logger = logger;
@@ -57,9 +57,9 @@ namespace TerrariumController.Services
                 if (!lockoutState.IsLocked && humidity < settings.Sensor1HumidityThreshold)
                 {
                     // Trigger Relay 5 for 1 second
-                    await _relayService.SetRelayStateAsync(5, true, "Humidity Threshold");
+                    await _relayCommandCoordinator.RequestRelayStateAsync(5, true, "Humidity Threshold");
                     await Task.Delay(1000);
-                    await _relayService.SetRelayStateAsync(5, false, "Humidity Pulse Complete");
+                    await _relayCommandCoordinator.RequestRelayStateAsync(5, false, "Humidity Pulse Complete");
 
                     // Apply lockout
                     lockoutState.LastTriggeredTime = DateTime.UtcNow;

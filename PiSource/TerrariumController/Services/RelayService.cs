@@ -155,26 +155,20 @@ namespace TerrariumController.Services
                 if (oldState == state)
                     return; // No change
 
-                _relayStates[relayId] = state;
+                var gpioWriteSucceeded = true;
 
                 // Control GPIO pin if available
                 if (_gpioController != null && _relayGpioPins.TryGetValue(relayId, out int gpioPin))
                 {
-                    try
+                    gpioWriteSucceeded = await TryWriteRelayGpioWithRetryAsync(relayId, gpioPin, state);
+                    if (!gpioWriteSucceeded)
                     {
-                        if (_gpioController.IsPinOpen(gpioPin))
-                        {
-                            PinValue gpioValue = state ? PinValue.High : PinValue.Low;
-                            _gpioController.Write(gpioPin, gpioValue);
-                            _logger.LogInformation("GPIO pin {GpioPin} (Relay {RelayId}) set to {Value}",
-                                gpioPin, relayId, state ? "HIGH" : "LOW");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to set GPIO pin {GpioPin} for Relay {RelayId}", gpioPin, relayId);
+                        _logger.LogError("Aborting state persistence because GPIO write failed for relay {RelayId}", relayId);
+                        return;
                     }
                 }
+
+                _relayStates[relayId] = state;
 
                 var relayLog = new RelayState
                 {
@@ -196,6 +190,55 @@ namespace TerrariumController.Services
             {
                 _logger.LogError(ex, "Error setting relay {RelayId}", relayId);
             }
+        }
+
+        private async Task<bool> TryWriteRelayGpioWithRetryAsync(int relayId, int gpioPin, bool state)
+        {
+            const int maxAttempts = 3;
+            var gpioValue = state ? PinValue.High : PinValue.Low;
+
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                try
+                {
+                    if (_gpioController == null)
+                    {
+                        return false;
+                    }
+
+                    if (!_gpioController.IsPinOpen(gpioPin))
+                    {
+                        _logger.LogWarning("GPIO pin {GpioPin} for relay {RelayId} is not open", gpioPin, relayId);
+                        return false;
+                    }
+
+                    _gpioController.Write(gpioPin, gpioValue);
+                    _logger.LogInformation(
+                        "GPIO pin {GpioPin} (Relay {RelayId}) set to {Value} on attempt {Attempt}",
+                        gpioPin,
+                        relayId,
+                        state ? "HIGH" : "LOW",
+                        attempt);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "GPIO write failed for relay {RelayId} on pin {GpioPin} attempt {Attempt}/{MaxAttempts}",
+                        relayId,
+                        gpioPin,
+                        attempt,
+                        maxAttempts);
+
+                    if (attempt < maxAttempts)
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(200 * attempt));
+                    }
+                }
+            }
+
+            return false;
         }
 
         public async Task<Dictionary<int, bool>> GetAllRelayStatesAsync()

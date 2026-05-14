@@ -1,0 +1,18 @@
+[Unit]
+Description=Terrarium Camera Stream Service
+After=network.target
+PartOf=terrarium.service
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=3
+User=terrarium
+WorkingDirectory=/opt/terrarium
+EnvironmentFile=-/etc/terrarium/terrarium.env
+ExecStart=/opt/terrarium/camera.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

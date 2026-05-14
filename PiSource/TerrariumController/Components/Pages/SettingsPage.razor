@@ -10,7 +10,31 @@
 <PageTitle>Settings - Terrarium Controller</PageTitle>
 
 <div class="settings-container">
+    <div class="page-actions">
+        <a href="/" class="back-link" aria-label="Back to home page">Back to Home</a>
+    </div>
+
     <h1>Settings</h1>
+
+    @if (!string.IsNullOrWhiteSpace(SaveMessage))
+    {
+        <div class="status-message @(SaveMessageIsError ? "status-error" : "status-success")" role="status" aria-live="polite">
+            @SaveMessage
+        </div>
+    }
+
+    @if (ValidationErrors.Count > 0)
+    {
+        <div class="validation-summary" role="alert" aria-live="assertive">
+            <strong>Please fix these settings issues:</strong>
+            <ul>
+                @foreach (var error in ValidationErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    }
 
     @if (CurrentSettings == null)
     {
@@ -197,6 +221,7 @@
                 <h2>Logs</h2>
                 <div class="info-text">View the full event and sensor history on the log page.</div>
                 <a href="/logs" class="btn-logs">📋 View Full Log History →</a>
+                <a href="/diagnostics" class="btn-logs btn-diagnostics">🩺 Open Control Diagnostics →</a>
             </section>
 
             <!-- Action Buttons -->
@@ -218,10 +243,65 @@
         color: #e7edf7;
     }
 
+    .page-actions {
+        margin-bottom: 0.75rem;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        font-weight: 600;
+        text-decoration: none;
+        color: #7bd7ff;
+        padding: 0.3rem 0.55rem;
+        border: 1px solid rgba(123, 215, 255, 0.45);
+        border-radius: 8px;
+        background: rgba(8, 24, 38, 0.35);
+    }
+
+    .back-link:hover {
+        color: #cdefff;
+        border-color: rgba(123, 215, 255, 0.8);
+        background: rgba(8, 24, 38, 0.55);
+    }
+
     .settings-container h1 {
         color: #f5f9ff;
         margin-bottom: 1.5rem;
         font-size: 1.8rem;
+    }
+
+    .status-message {
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .status-error {
+        background: rgba(239, 68, 68, 0.16);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #fecaca;
+    }
+
+    .status-success {
+        background: rgba(34, 197, 94, 0.16);
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        color: #bbf7d0;
+    }
+
+    .validation-summary {
+        margin-bottom: 1rem;
+        padding: 0.9rem 1rem;
+        border-radius: 10px;
+        background: rgba(245, 158, 11, 0.13);
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        color: #fde68a;
+    }
+
+    .validation-summary ul {
+        margin: 0.5rem 0 0 1rem;
+        padding: 0;
     }
 
     .settings-section {
@@ -490,11 +570,25 @@
         background: rgba(167, 139, 250, 0.22);
         transform: translateY(-1px);
     }
+
+    .btn-diagnostics {
+        margin-left: 0.5rem;
+        background: rgba(45, 212, 191, 0.12);
+        border-color: rgba(45, 212, 191, 0.3);
+        color: #5eead4;
+    }
+
+    .btn-diagnostics:hover {
+        background: rgba(45, 212, 191, 0.22);
+    }
 </style>
 
 @code {
     private Models.Settings CurrentSettings = null!;
     private long DbSize = 0;
+    private string? SaveMessage;
+    private bool SaveMessageIsError;
+    private List<string> ValidationErrors = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -511,15 +605,106 @@
 
     private async Task SaveSettings()
     {
+        SaveMessage = null;
+        SaveMessageIsError = false;
+        ValidationErrors = ValidateSettingsInput();
+
+        if (ValidationErrors.Count > 0)
+        {
+            SaveMessage = "Settings were not saved.";
+            SaveMessageIsError = true;
+            return;
+        }
+
         try
         {
             await SettingsService.UpdateSettingsAsync(CurrentSettings);
             Logger.LogInformation("Settings saved successfully");
             NavigationManager.NavigateTo("/");
         }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            SaveMessage = ex.Message;
+            SaveMessageIsError = true;
+            Logger.LogWarning(ex, "Range validation error while saving settings");
+        }
+        catch (ArgumentException ex)
+        {
+            SaveMessage = ex.Message;
+            SaveMessageIsError = true;
+            Logger.LogWarning(ex, "Validation error while saving settings");
+        }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error saving settings");
+            SaveMessage = "Failed to save settings. Please check logs for details.";
+            SaveMessageIsError = true;
+        }
+    }
+
+    private List<string> ValidateSettingsInput()
+    {
+        var errors = new List<string>();
+
+        if (CurrentSettings.TemperatureHysteresis <= 0 || CurrentSettings.TemperatureHysteresis > 5)
+        {
+            errors.Add("Temperature hysteresis must be between 0 and 5 C.");
+        }
+
+        ValidateThresholdRange(CurrentSettings.Threshold1Temperature, "Relay 1 temperature threshold", errors);
+        ValidateThresholdRange(CurrentSettings.Threshold2Temperature, "Relay 2 temperature threshold", errors);
+        ValidateThresholdRange(CurrentSettings.Threshold3Temperature, "Relay 3 temperature threshold", errors);
+
+        if (CurrentSettings.Sensor1HumidityThreshold < 20 || CurrentSettings.Sensor1HumidityThreshold > 100)
+        {
+            errors.Add("Sensor 1 humidity threshold must be between 20 and 100.");
+        }
+
+        if (!TimeSpan.TryParse(CurrentSettings.Relay4OnTime, out _) || !TimeSpan.TryParse(CurrentSettings.Relay4OffTime, out _))
+        {
+            errors.Add("Relay 4 On/Off time must be valid HH:mm values.");
+        }
+
+        var relayPins = new[]
+        {
+            CurrentSettings.Relay1GPIO,
+            CurrentSettings.Relay2GPIO,
+            CurrentSettings.Relay3GPIO,
+            CurrentSettings.Relay4GPIO,
+            CurrentSettings.Relay5GPIO,
+            CurrentSettings.Relay6GPIO
+        };
+
+        var sensorPins = new[]
+        {
+            CurrentSettings.Sensor1GPIO,
+            CurrentSettings.Sensor2GPIO,
+            CurrentSettings.Sensor3GPIO
+        };
+
+        if (relayPins.Any(pin => pin <= 0) || sensorPins.Any(pin => pin <= 0))
+        {
+            errors.Add("All GPIO pins must be greater than zero.");
+        }
+
+        if (relayPins.Distinct().Count() != relayPins.Length)
+        {
+            errors.Add("Relay GPIO pins must be unique.");
+        }
+
+        if (sensorPins.Distinct().Count() != sensorPins.Length)
+        {
+            errors.Add("Sensor GPIO pins must be unique.");
+        }
+
+        return errors;
+    }
+
+    private static void ValidateThresholdRange(double value, string name, ICollection<string> errors)
+    {
+        if (value < 5 || value > 60)
+        {
+            errors.Add($"{name} must be between 5 and 60 C.");
         }
     }
 

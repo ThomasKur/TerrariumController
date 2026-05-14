@@ -1,6 +1,7 @@
 [Unit]
 Description=Terrarium Controller Service
 After=network.target
+Wants=terrarium-camera.service
 StartLimitIntervalSec=0
 
 [Service]
@@ -9,6 +10,7 @@ Restart=on-failure
 RestartSec=10
 User=terrarium
 WorkingDirectory=/opt/terrarium
+EnvironmentFile=-/etc/terrarium/terrarium.env
 Environment="ASPNETCORE_URLS=http://0.0.0.0:5000"
 Environment="ASPNETCORE_ENVIRONMENT=Production"
 ExecStart=/opt/terrarium/run.sh

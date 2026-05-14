@@ -7,14 +7,16 @@ namespace TerrariumController.Hubs
     public class SensorHub : Hub
     {
         private readonly ISensorService _sensorService;
+        private readonly IRelayCommandCoordinator _relayCommandCoordinator;
         private readonly IRelayService _relayService;
         private readonly ISettingsService _settingsService;
         private readonly ILogger<SensorHub> _logger;
 
-        public SensorHub(ISensorService sensorService, IRelayService relayService,
+        public SensorHub(ISensorService sensorService, IRelayCommandCoordinator relayCommandCoordinator, IRelayService relayService,
             ISettingsService settingsService, ILogger<SensorHub> logger)
         {
             _sensorService = sensorService;
+            _relayCommandCoordinator = relayCommandCoordinator;
             _relayService = relayService;
             _settingsService = settingsService;
             _logger = logger;
@@ -92,14 +94,10 @@ namespace TerrariumController.Hubs
         {
             try
             {
-                var relayService = Context.GetHttpContext()?.RequestServices.GetRequiredService<IRelayService>();
-                if (relayService != null)
-                {
-                    await relayService.SetRelayStateAsync(relayId, state, "Manual Override");
-                    var states = await relayService.GetAllRelayStatesAsync();
-                    await Clients.All.SendAsync("ReceiveRelayStates", states);
-                    _logger.LogInformation("Relay {RelayId} manually set to {State}", relayId, state);
-                }
+                await _relayCommandCoordinator.RequestRelayStateAsync(relayId, state, "Manual Override");
+                var states = await _relayService.GetAllRelayStatesAsync();
+                await Clients.All.SendAsync("ReceiveRelayStates", states);
+                _logger.LogInformation("Relay {RelayId} manually set to {State}", relayId, state);
             }
             catch (Exception ex)
             {
