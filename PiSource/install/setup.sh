@@ -240,12 +240,17 @@ else
     fi
 fi
 
-echo "Installing Chromium browser for kiosk mode..."
-if ! apt install -y chromium-browser; then
-    echo -e "${YELLOW}Warning: chromium-browser installation failed, trying chromium...${NC}"
-    if ! apt install -y chromium; then
-        echo -e "${YELLOW}Warning: Chromium installation failed. Kiosk mode may not start until Chromium is installed.${NC}"
-    fi
+echo "Installing Chromium browser for kiosk mode (optional)..."
+# Try chromium package first (Pi OS Bookworm+), then chromium-browser (older versions)
+if apt install -y chromium; then
+    echo -e "${GREEN}Chromium installed successfully${NC}"
+elif apt install -y chromium-browser; then
+    echo -e "${GREEN}Chromium browser installed successfully${NC}"
+else
+    echo -e "${YELLOW}Warning: Chromium not available in default repositories.${NC}"
+    echo -e "${YELLOW}Kiosk autostart will not work. To enable kiosk mode manually:${NC}"
+    echo -e "${YELLOW}  1. Install Chromium: sudo apt install chromium${NC}"
+    echo -e "${YELLOW}  2. See start-kiosk.sh script for autostart configuration${NC}"
 fi
 
 # Verify camera is accessible

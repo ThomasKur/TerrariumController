@@ -13,7 +13,7 @@ Logging records all relay state changes with the sensor values that triggered th
 
 ## Setup
 
-Initial setup configures the application to auto-start in full-screen (kiosk) mode. The installer installs GPIO libraries, rpicam-apps, and mjpg-streamer for live camera streaming. See [Deployment](#deployment) section below.
+Initial setup configures the application to run on a Raspberry Pi with GPIO and camera support. Optional kiosk mode auto-starts the app in full-screen Chromium. The installer sets up GPIO libraries, rpicam-apps, and ffmpeg for live camera streaming. See [Deployment](#deployment) section below.
 
 ## Required Parts
 
@@ -77,7 +77,7 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    - GPIO libraries
    - rpicam-apps and ffmpeg for camera streaming
    - Systemd service units (`terrarium` and `terrarium-camera`)
-   - Chromium kiosk launcher
+   - Chromium browser (optional, for kiosk mode autostart)
 
 3. **Build and publish the application**:
    ```bash
@@ -103,8 +103,9 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    ```
 
 7. **Access the UI**:
-   - **Local**: Touch screen will auto-launch Chromium in kiosk mode
-   - **Remote**: Open browser and navigate to `http://<pi-ip>:5000`
+   - **With Chromium kiosk** (if installed): Touch screen auto-launches full-screen Chromium at startup
+   - **Any browser**: Open browser and navigate to `http://<pi-ip>:5000`
+   - **Remote SSH**: App runs on port 5000; access from any browser on your network
 
 ### Configuration
 
