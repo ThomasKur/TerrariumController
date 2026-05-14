@@ -465,7 +465,8 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
     
     # Start the service automatically
     echo ""
-    echo "Starting terrarium service..."
+    echo "Starting terrarium services..."
+    systemctl start terrarium-camera
     systemctl start terrarium
     
     # Wait a moment for service to start
@@ -477,14 +478,27 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
     if systemctl is-active --quiet terrarium; then
         echo -e "${GREEN}✓ Terrarium service is running${NC}"
         systemctl status terrarium --no-pager -l | head -n 15
+
+        echo ""
+        echo "Camera service status:"
+        if systemctl is-active --quiet terrarium-camera; then
+            echo -e "${GREEN}✓ Terrarium camera service is running${NC}"
+            systemctl status terrarium-camera --no-pager -l | head -n 15
+        else
+            echo -e "${RED}✗ Terrarium camera service failed to start${NC}"
+            journalctl -u terrarium-camera -n 20 --no-pager
+            exit 1
+        fi
         
         # Check if port 5000 is listening
         echo ""
         echo "Network status:"
         if command -v netstat >/dev/null 2>&1; then
             netstat -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
+            netstat -tlnp | grep :8080 || echo -e "${YELLOW}Port 8080 (camera stream) not yet listening${NC}"
         elif command -v ss >/dev/null 2>&1; then
             ss -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
+            ss -tlnp | grep :8080 || echo -e "${YELLOW}Port 8080 (camera stream) not yet listening${NC}"
         fi
         
         # Try to connect to the service
@@ -550,5 +564,7 @@ echo ""
 echo "Useful commands:"
 echo "  Restart service:  sudo systemctl restart terrarium"
 echo "  View logs:        sudo journalctl -u terrarium -f"
+echo "  Camera logs:      sudo journalctl -u terrarium-camera -f"
 echo "  Stop service:     sudo systemctl stop terrarium"
+echo "  Stop camera:      sudo systemctl stop terrarium-camera"
 echo "  Manual test:      sudo -u terrarium /opt/terrarium/run.sh"
