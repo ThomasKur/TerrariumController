@@ -13,7 +13,7 @@ Logging records all relay state changes with the sensor values that triggered th
 
 ## Setup
 
-Initial setup configures the application to auto-start in full-screen (kiosk) mode. The installer installs all prerequisites such as .NET runtime, GPIO libraries, and mjpg-streamer for camera streaming. See [Deployment](#deployment) section below.
+Initial setup configures the application to auto-start in full-screen (kiosk) mode. The installer installs GPIO libraries, rpicam/libcamera tools, and mjpg-streamer for live camera streaming. See [Deployment](#deployment) section below.
 
 ## Required Parts
 
@@ -74,10 +74,9 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    sudo bash setup.sh
    ```
    This installs:
-   - .NET 8 SDK and runtime
    - GPIO libraries
-   - mjpg-streamer for camera streaming
-   - Systemd service unit
+   - rpicam/libcamera tools and mjpg-streamer for camera streaming
+   - Systemd service units (`terrarium` and `terrarium-camera`)
    - Chromium kiosk launcher
 
 3. **Build and publish the application**:
@@ -141,7 +140,7 @@ sudo systemctl restart terrarium
 # Check mjpg-streamer is running
 ps aux | grep mjpg
 # Test camera manually
-libcamera-hello -t 5
+rpicam-hello -t 5
 ```
 
 **Database corrupted**:

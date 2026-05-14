@@ -794,7 +794,7 @@
     {
         if (firstRender && !_isDisposed)
         {
-            await JS.InvokeVoidAsync("startCameraSnapshot", "/camera/snapshot.jpg");
+            await JS.InvokeVoidAsync("startCameraStream");
         }
         await base.OnAfterRenderAsync(firstRender);
     }

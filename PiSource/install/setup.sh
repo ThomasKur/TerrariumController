@@ -153,6 +153,7 @@ ASPNETCORE_ENVIRONMENT=Production
 CAMERA_WIDTH=640
 CAMERA_HEIGHT=480
 CAMERA_FPS=15
+CAMERA_STREAM_PORT=8080
 EOF
     echo "Created /etc/terrarium/terrarium.env"
 else
@@ -187,10 +188,11 @@ mkdir -p /opt/terrarium/logs
 WIDTH=${CAMERA_WIDTH:-640}
 HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
+STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
 
 # Use mjpeg-streamer with input from rpicam-vid piped to file descriptor
 exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>/dev/null | \
-mjpeg_streamer -i "input_file.so -f /dev/stdin" -o "output_http.so -p 8080 -w /usr/share/mjpeg-streamer/www" \
+mjpeg_streamer -i "input_file.so -f /dev/stdin" -o "output_http.so -p $STREAM_PORT -w /usr/share/mjpeg-streamer/www" \
     >> /opt/terrarium/logs/camera-stream.log 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
@@ -208,9 +210,12 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
 fi
 
 # Install camera streaming tools
-echo "Installing libcamera tools and ffmpeg..."
-if ! apt install -y libcamera-tools libcamera-apps ffmpeg mjpeg-streamer; then
-    echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
+echo "Installing Pi camera and streaming tools..."
+if ! apt install -y rpicam-apps ffmpeg mjpeg-streamer; then
+    echo -e "${YELLOW}Warning: rpicam-apps install failed, trying legacy libcamera package names...${NC}"
+    if ! apt install -y libcamera-tools libcamera-apps ffmpeg mjpeg-streamer; then
+        echo -e "${YELLOW}Warning: camera tools installation failed${NC}"
+    fi
 fi
 
 echo "Installing Chromium browser for kiosk mode..."
@@ -222,16 +227,10 @@ if ! apt install -y chromium-browser; then
 fi
 
 # Verify camera is accessible
-if [ -c /dev/video0 ]; then
-    echo -e "${GREEN}Camera device /dev/video0 detected${NC}"
-    # Test if camera works with rpicam
-    if timeout 3 rpicam-hello 2>/dev/null | head -1 | grep -q "Camera"; then
-        echo -e "${GREEN}rpicam tools found and camera is accessible${NC}"
-    else
-        echo -e "${YELLOW}Warning: rpicam test inconclusive; verify with: rpicam-hello${NC}"
-    fi
+if timeout 3 rpicam-hello 2>/dev/null | head -1 | grep -q "Camera"; then
+    echo -e "${GREEN}rpicam tools found and camera is accessible${NC}"
 else
-    echo -e "${YELLOW}Warning: Camera device /dev/video0 not found${NC}"
+    echo -e "${YELLOW}Warning: rpicam test inconclusive; verify with: rpicam-hello${NC}"
 fi
 
 echo "Test command to verify camera stream:"
@@ -244,8 +243,16 @@ if [ ! -f "$SCRIPT_DIR/terrarium.service" ]; then
     exit 1
 fi
 cp "$SCRIPT_DIR/terrarium.service" /etc/systemd/system/
+
+if [ ! -f "$SCRIPT_DIR/terrarium-camera.service" ]; then
+    echo -e "${RED}Error: terrarium-camera.service not found in $SCRIPT_DIR${NC}"
+    exit 1
+fi
+cp "$SCRIPT_DIR/terrarium-camera.service" /etc/systemd/system/
+
 systemctl daemon-reload
 systemctl enable terrarium
+systemctl enable terrarium-camera
 
 # Create kiosk autostart script(s)
 echo "Creating Chromium kiosk launcher..."

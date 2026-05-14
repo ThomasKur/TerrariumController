@@ -1,13 +1,19 @@
-let cameraTimer;
-function startCameraSnapshot(path) {
+function startCameraStream() {
     const img = document.getElementById('camera-feed');
     if (!img) return;
-    const refresh = () => {
-        img.src = path + '?ts=' + Date.now();
+
+    const cameraPort = 8080;
+    const protocol = window.location.protocol === 'https:' ? 'http:' : window.location.protocol;
+    const streamUrl = `${protocol}//${window.location.hostname}:${cameraPort}/?action=stream`;
+
+    // Reconnect the MJPEG stream if the backend camera service restarts.
+    img.onerror = () => {
+        setTimeout(() => {
+            img.src = `${streamUrl}&ts=${Date.now()}`;
+        }, 3000);
     };
-    refresh();
-    clearInterval(cameraTimer);
-    cameraTimer = setInterval(refresh, 5000);
+
+    img.src = streamUrl;
 }
 
 function closeKioskWindow() {

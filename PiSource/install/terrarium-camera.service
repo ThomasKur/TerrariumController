@@ -1,19 +1,16 @@
 [Unit]
-Description=Terrarium Controller Service
+Description=Terrarium Camera Stream Service
 After=network.target
-Wants=terrarium-camera.service
-StartLimitIntervalSec=0
+PartOf=terrarium.service
 
 [Service]
 Type=simple
 Restart=on-failure
-RestartSec=10
+RestartSec=3
 User=terrarium
 WorkingDirectory=/opt/terrarium
 EnvironmentFile=-/etc/terrarium/terrarium.env
-Environment="ASPNETCORE_URLS=http://0.0.0.0:5000"
-Environment="ASPNETCORE_ENVIRONMENT=Production"
-ExecStart=/opt/terrarium/run.sh
+ExecStart=/opt/terrarium/camera.sh
 StandardOutput=journal
 StandardError=journal
 
