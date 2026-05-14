@@ -224,13 +224,19 @@ import os
 import sys
 import socket
 import subprocess
+import threading
 from threading import Thread
 
 # Get configuration from environment variables
-stream_port = int(os.environ.get('STREAM_PORT', '8080'))
+stream_port = int(os.environ.get('CAMERA_STREAM_PORT', '8080'))
 width = int(os.environ.get('CAMERA_WIDTH', '640'))
 height = int(os.environ.get('CAMERA_HEIGHT', '480'))
 fps = int(os.environ.get('CAMERA_FPS', '15'))
+boundary = b'frame'
+
+# Keep latest frame in memory so each client gets complete JPEG parts.
+latest_frame = None
+latest_lock = threading.Lock()
 
 def run_camera_stream():
     """Start rpicam-vid to generate MJPEG stream"""
@@ -247,12 +253,40 @@ def run_camera_stream():
     camera_process = subprocess.Popen(camera_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return camera_process
 
+def frame_reader(camera_stream):
+    """Parse JPEG frames from rpicam-vid stdout and store latest frame."""
+    global latest_frame
+    buffer = bytearray()
+    while True:
+        chunk = camera_stream.stdout.read(8192)
+        if not chunk:
+            break
+        buffer.extend(chunk)
+
+        while True:
+            start = buffer.find(b'\xff\xd8')
+            if start < 0:
+                if len(buffer) > 1048576:
+                    del buffer[:-65536]
+                break
+
+            end = buffer.find(b'\xff\xd9', start + 2)
+            if end < 0:
+                if start > 0:
+                    del buffer[:start]
+                break
+
+            frame = bytes(buffer[start:end + 2])
+            del buffer[:end + 2]
+            with latest_lock:
+                latest_frame = frame
+
 def handle_http_request(client_socket, camera_stream):
     """Handle incoming HTTP request and stream MJPEG data"""
     try:
         # Send HTTP headers for MJPEG stream
         http_header = b'HTTP/1.0 200 OK\r\n'
-        http_header += b'Content-Type: multipart/x-mixed-replace; boundary=--gc0p4Jq4\r\n'
+        http_header += b'Content-Type: multipart/x-mixed-replace; boundary=' + boundary + b'\r\n'
         http_header += b'Connection: close\r\n'
         http_header += b'Expires: Fri, 01 Jan 1999 00:00:00 GMT\r\n'
         http_header += b'Pragma: no-cache\r\n'
@@ -260,13 +294,26 @@ def handle_http_request(client_socket, camera_stream):
         
         client_socket.sendall(http_header)
         
-        # Stream MJPEG data in chunks
-        chunk_size = 65536
+        # Stream proper multipart JPEG frames.
         while True:
-            data = camera_stream.stdout.read(chunk_size)
-            if not data:
-                break
-            client_socket.sendall(data)
+            with latest_lock:
+                frame = latest_frame
+
+            if frame is None:
+                continue
+
+            part_header = b'--' + boundary + b'\r\n'
+            part_header += b'Content-Type: image/jpeg\r\n'
+            part_header += b'Content-Length: ' + str(len(frame)).encode('ascii') + b'\r\n\r\n'
+            client_socket.sendall(part_header)
+            client_socket.sendall(frame)
+            client_socket.sendall(b'\r\n')
+    except BrokenPipeError:
+        # Client disconnected while streaming; this is expected.
+        pass
+    except ConnectionResetError:
+        # Browser/network reset during stream; safe to ignore.
+        pass
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
     finally:
@@ -274,6 +321,8 @@ def handle_http_request(client_socket, camera_stream):
 
 # Start camera stream process
 camera_proc = run_camera_stream()
+frame_thread = Thread(target=frame_reader, args=(camera_proc,), daemon=True)
+frame_thread.start()
 
 # Create HTTP server socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -617,7 +666,7 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         # Try to connect to app and camera services
         echo ""
         if command -v curl >/dev/null 2>&1; then
-            CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-8080}/?action=snapshot"
+            CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-8080}/"
             if curl -fsS --connect-timeout 5 --max-time 10 "$CAMERA_URL" >/dev/null 2>&1; then
                 echo -e "${GREEN}✓ Camera endpoint responded${NC}"
             else
