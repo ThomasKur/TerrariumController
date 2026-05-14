@@ -141,14 +141,24 @@ sudo systemctl restart terrarium
 # Check if camera service is running
 systemctl status terrarium-camera
 
-# Check camera can be accessed
-rpicam-hello -t 1
-
-# View camera service logs
+# View camera service logs (shows startup errors)
 sudo journalctl -u terrarium-camera -f -n 50
 
-# Test manual MJPEG stream (ffmpeg required)
+# If exit code 127 (command not found), verify dependencies:
+which ffmpeg || echo "ffmpeg not installed"
+which rpicam-vid || echo "rpicam-vid not installed"
+
+# Install missing tools
+sudo apt install ffmpeg rpicam-apps -y
+
+# Verify camera hardware is accessible
+rpicam-hello -t 1
+
+# Manual test of MJPEG stream
 rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg
+
+# After installing dependencies, restart the camera service
+sudo systemctl restart terrarium-camera
 ```
 
 **Database corrupted**:

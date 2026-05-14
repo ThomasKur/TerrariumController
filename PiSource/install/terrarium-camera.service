@@ -10,6 +10,8 @@ RestartSec=3
 User=terrarium
 WorkingDirectory=/opt/terrarium
 EnvironmentFile=-/etc/terrarium/terrarium.env
+# Ensure standard paths are available for camera.sh
+Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=/opt/terrarium/camera.sh
 StandardOutput=journal
 StandardError=journal

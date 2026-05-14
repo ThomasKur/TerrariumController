@@ -194,21 +194,34 @@ STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
 
 LOG_FILE="/opt/terrarium/logs/camera-stream.log"
 
-if ! command -v ffmpeg >/dev/null 2>&1; then
-    echo "$(date): ffmpeg not found. Install with: sudo apt install ffmpeg" >> "$LOG_FILE"
-    exit 1
-fi
+# Ensure standard paths are available (systemd service may have limited PATH)
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
-if ! command -v rpicam-vid >/dev/null 2>&1; then
-    echo "$(date): rpicam-vid not found. Install with: sudo apt install rpicam-apps" >> "$LOG_FILE"
-    exit 1
-fi
-
-# Use ffmpeg to serve MJPEG over HTTP on port 8080
-# The -http_server flag enables ffmpeg's built-in HTTP server for streaming
-exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>>/dev/null | \
-ffmpeg -f mjpeg -i pipe:0 -codec copy -f mpjpeg -http_server 1 -http_port "$STREAM_PORT" - \
-    >> "$LOG_FILE" 2>&1
+{
+    echo "=== Camera Service Started at $(date) ==="
+    echo "Environment: PATH=$PATH"
+    echo "USER=$(whoami), UID=$(id -u)"
+    
+    # Check for required tools
+    if ! command -v ffmpeg >/dev/null 2>&1; then
+        echo "ERROR: ffmpeg not found. Install with: sudo apt install ffmpeg"
+        exit 1
+    fi
+    
+    if ! command -v rpicam-vid >/dev/null 2>&1; then
+        echo "ERROR: rpicam-vid not found. Install with: sudo apt install rpicam-apps"
+        exit 1
+    fi
+    
+    echo "ffmpeg found at: $(command -v ffmpeg)"
+    echo "rpicam-vid found at: $(command -v rpicam-vid)"
+    
+    # Use ffmpeg to serve MJPEG over HTTP on port 8080
+    # The -http_server flag enables ffmpeg's built-in HTTP server for streaming
+    echo "Starting camera stream: rpicam-vid -> ffmpeg -> HTTP :$STREAM_PORT"
+    exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>&1 | \
+    ffmpeg -f mjpeg -i pipe:0 -codec copy -f mpjpeg -http_server 1 -http_port "$STREAM_PORT" - 2>&1
+} >> "$LOG_FILE" 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
 chmod +x /opt/terrarium/camera.sh
