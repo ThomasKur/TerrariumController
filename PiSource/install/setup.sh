@@ -178,9 +178,9 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
-# Create camera runner script using ffmpeg to serve MJPEG over HTTP
+# Create camera runner script using Python HTTP server for MJPEG
 # Modern Raspberry Pi OS (Bookworm+) does not include mjpeg-streamer.
-# This script uses ffmpeg to bridge rpicam-vid MJPEG stream to HTTP.
+# This script uses rpicam-vid to generate MJPEG and serves it via Python HTTP server.
 echo "Creating camera runner script..."
 cat > /opt/terrarium/camera.sh << 'EOF'
 #!/bin/bash
@@ -203,24 +203,105 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
     echo "USER=$(whoami), UID=$(id -u)"
     
     # Check for required tools
-    if ! command -v ffmpeg >/dev/null 2>&1; then
-        echo "ERROR: ffmpeg not found. Install with: sudo apt install ffmpeg"
-        exit 1
-    fi
-    
     if ! command -v rpicam-vid >/dev/null 2>&1; then
         echo "ERROR: rpicam-vid not found. Install with: sudo apt install rpicam-apps"
         exit 1
     fi
     
-    echo "ffmpeg found at: $(command -v ffmpeg)"
-    echo "rpicam-vid found at: $(command -v rpicam-vid)"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: python3 not found. Install with: sudo apt install python3"
+        exit 1
+    fi
     
-    # Use ffmpeg to serve MJPEG over HTTP on port 8080
-    # The -http_server flag enables ffmpeg's built-in HTTP server for streaming
-    echo "Starting camera stream: rpicam-vid -> ffmpeg -> HTTP :$STREAM_PORT"
-    exec rpicam-vid --codec mjpeg -t 0 -n --width "$WIDTH" --height "$HEIGHT" --framerate "$FPS" -o - 2>&1 | \
-    ffmpeg -f mjpeg -i pipe:0 -codec copy -f mpjpeg -http_server 1 -http_port "$STREAM_PORT" - 2>&1
+    echo "rpicam-vid found at: $(command -v rpicam-vid)"
+    echo "python3 found at: $(command -v python3)"
+    echo "Starting camera stream on port $STREAM_PORT"
+    
+    # Create Python HTTP server wrapper for MJPEG streaming
+    # This reads MJPEG from rpicam-vid and serves it via HTTP
+    python3 << 'PYTHON'
+import socket
+import sys
+import subprocess
+from threading import Thread
+
+stream_port = int(os.environ.get('STREAM_PORT', 8080))
+width = os.environ.get('CAMERA_WIDTH', 640)
+height = os.environ.get('CAMERA_HEIGHT', 480)
+fps = os.environ.get('CAMERA_FPS', 15)
+
+os.environ.setdefault('STREAM_PORT', '8080')
+stream_port = int(os.environ['STREAM_PORT'])
+width = int(os.environ.get('CAMERA_WIDTH', 640))
+height = int(os.environ.get('CAMERA_HEIGHT', 480))
+fps = int(os.environ.get('CAMERA_FPS', 15))
+
+def run_camera_stream():
+    # Start rpicam-vid to generate MJPEG stream
+    camera_cmd = [
+        'rpicam-vid',
+        '--codec', 'mjpeg',
+        '-t', '0',  # Run indefinitely
+        '-n',  # No preview
+        '--width', str(width),
+        '--height', str(height),
+        '--framerate', str(fps),
+        '-o', '-'  # Output to stdout
+    ]
+    
+    camera_process = subprocess.Popen(camera_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return camera_process
+
+def handle_http_request(client_socket, camera_stream):
+    try:
+        # Send HTTP headers
+        http_header = b'HTTP/1.0 200 OK\r\n'
+        http_header += b'Content-Type: multipart/x-mixed-replace; boundary=--gc0p4Jq4\r\n'
+        http_header += b'Connection: close\r\n'
+        http_header += b'Expires: Fri, 01 Jan 1999 00:00:00 GMT\r\n'
+        http_header += b'Pragma: no-cache\r\n'
+        http_header += b'\r\n'
+        
+        client_socket.sendall(http_header)
+        
+        # Stream MJPEG data
+        chunk_size = 65536
+        while True:
+            data = camera_stream.stdout.read(chunk_size)
+            if not data:
+                break
+            client_socket.sendall(data)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+    finally:
+        client_socket.close()
+
+import os
+
+# Start camera stream process
+camera_proc = run_camera_stream()
+
+# Create HTTP server socket
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server_socket.bind(('0.0.0.0', stream_port))
+server_socket.listen(5)
+
+print(f"MJPEG server listening on port {stream_port}")
+
+try:
+    while True:
+        client_socket, client_address = server_socket.accept()
+        client_handler = Thread(target=handle_http_request, args=(client_socket, camera_proc))
+        client_handler.daemon = True
+        client_handler.start()
+except KeyboardInterrupt:
+    print("Shutting down camera service")
+finally:
+    server_socket.close()
+    camera_proc.terminate()
+    camera_proc.wait()
+PYTHON
 } >> "$LOG_FILE" 2>&1
 EOF
 chown terrarium:terrarium /opt/terrarium/camera.sh
@@ -238,19 +319,13 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
 fi
 
 # Install camera streaming tools
-echo "Installing Pi camera and streaming tools..."
-# Install rpicam-apps and ffmpeg (mjpeg-streamer not available in modern Pi OS)
-if apt install -y rpicam-apps ffmpeg; then
+echo "Installing Pi camera streaming tools..."
+# Install rpicam-apps (python3 is pre-installed on Raspberry Pi OS)
+if apt install -y rpicam-apps; then
     echo -e "${GREEN}Camera tools installed${NC}"
 else
-    echo -e "${YELLOW}Warning: camera tools installation partially failed${NC}"
-    # Attempt to install them individually if the combined install fails
-    if ! apt install -y rpicam-apps; then
-        echo -e "${YELLOW}Warning: rpicam-apps not available (camera streaming may not work)${NC}"
-    fi
-    if ! apt install -y ffmpeg; then
-        echo -e "${YELLOW}Warning: ffmpeg not available (camera streaming may not work)${NC}"
-    fi
+    echo -e "${YELLOW}Warning: rpicam-apps installation failed${NC}"
+    echo -e "${YELLOW}Camera streaming will not work. Install manually: sudo apt install rpicam-apps${NC}"
 fi
 
 echo "Installing Chromium browser for kiosk mode (optional)..."

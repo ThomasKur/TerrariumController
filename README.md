@@ -13,7 +13,7 @@ Logging records all relay state changes with the sensor values that triggered th
 
 ## Setup
 
-Initial setup configures the application to run on a Raspberry Pi with GPIO and camera support. Optional kiosk mode auto-starts the app in full-screen Chromium. The installer sets up GPIO libraries, rpicam-apps, and ffmpeg for live camera streaming. See [Deployment](#deployment) section below.
+Initial setup configures the application to run on a Raspberry Pi with GPIO and camera support. Optional kiosk mode auto-starts the app in full-screen Chromium. The installer sets up GPIO libraries and rpicam-apps for live MJPEG camera streaming via Python HTTP server. See [Deployment](#deployment) section below.
 
 ## Required Parts
 
@@ -75,7 +75,7 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    ```
    This installs:
    - GPIO libraries
-   - rpicam-apps and ffmpeg for camera streaming
+   - rpicam-apps for camera streaming (Python3 HTTP server included)
    - Systemd service units (`terrarium` and `terrarium-camera`)
    - Chromium browser (optional, for kiosk mode autostart)
 
@@ -141,21 +141,24 @@ sudo systemctl restart terrarium
 # Check if camera service is running
 systemctl status terrarium-camera
 
-# View camera service logs (shows startup errors)
-sudo journalctl -u terrarium-camera -f -n 50
+# View camera service logs (shows startup errors and diagnostics)
+sudo journalctl -u terrarium-camera -f -n 100
 
 # If exit code 127 (command not found), verify dependencies:
-which ffmpeg || echo "ffmpeg not installed"
 which rpicam-vid || echo "rpicam-vid not installed"
+which python3 || echo "python3 not installed"
 
-# Install missing tools
-sudo apt install ffmpeg rpicam-apps -y
+# Install camera tools
+sudo apt install rpicam-apps -y
 
 # Verify camera hardware is accessible
 rpicam-hello -t 1
 
-# Manual test of MJPEG stream
+# Test camera stream manually
 rpicam-vid --codec mjpeg -t 5 --width 640 --height 480 --framerate 15 -o /tmp/test.mjpeg
+
+# Test HTTP access to camera stream
+curl -v http://localhost:8080/ 2>&1 | head -10
 
 # After installing dependencies, restart the camera service
 sudo systemctl restart terrarium-camera
