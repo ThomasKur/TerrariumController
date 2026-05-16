@@ -207,6 +207,31 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
+# Copy kiosk launcher scripts to /opt/terrarium
+echo "Deploying kiosk launcher scripts..."
+
+# Remove old wrapper script if it exists
+if [ -f "/opt/terrarium/start-kiosk-desktop.sh" ]; then
+    echo "Removing old wrapper script..."
+    rm -f /opt/terrarium/start-kiosk-desktop.sh
+fi
+
+if [ ! -f "$SCRIPT_DIR/start-kiosk.sh" ]; then
+    echo -e "${YELLOW}Warning: start-kiosk.sh not found in $SCRIPT_DIR${NC}"
+else
+    cp "$SCRIPT_DIR/start-kiosk.sh" /opt/terrarium/start-kiosk.sh
+    chmod +x /opt/terrarium/start-kiosk.sh
+    echo "Deployed start-kiosk.sh"
+fi
+
+if [ ! -f "$SCRIPT_DIR/kiosk.sh" ]; then
+    echo -e "${YELLOW}Warning: kiosk.sh not found in $SCRIPT_DIR${NC}"
+else
+    cp "$SCRIPT_DIR/kiosk.sh" /opt/terrarium/kiosk.sh
+    chmod +x /opt/terrarium/kiosk.sh
+    echo "Deployed kiosk.sh"
+fi
+
 # Create camera runner script using Python HTTP server for MJPEG
 # Modern Raspberry Pi OS (Bookworm+) does not include mjpeg-streamer.
 # This script uses rpicam-vid to generate MJPEG and serves it via Python HTTP server.
