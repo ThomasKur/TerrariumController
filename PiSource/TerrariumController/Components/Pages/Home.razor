@@ -19,16 +19,11 @@
     <header class="hero">
         <div>
             <p class="eyebrow">Terrarium Controller</p>
-            <h1>Live Environment Overview</h1>
-            <p class="lede">Monitor temperatures, humidity, and daylight schedule at a glance.</p>
         </div>
     </header>
 
     <section class="dashboard-toolbar" aria-label="Dashboard actions">
-        <div class="meta-item compact-meta">
-            <span class="meta-label">Last Updated</span>
-            <span class="meta-value">@CurrentTime.ToString("HH:mm:ss")</span>
-        </div>
+        
         <div class="action-strip">
             <a href="/settings" class="settings-link" aria-label="Open settings page">
                 <span class="settings-icon" aria-hidden="true">
@@ -77,6 +72,10 @@
         <div class="state-item">
             <span class="state-label">Last Control Cycle</span>
             <span class="state-value">@GetLastCycleDisplay() (@RuntimeHealth.LastCycleStatus)</span>
+        </div>
+        <div class="state-item">
+            <span class="state-label">Last Updated</span>
+            <span class="state-value">@CurrentTime.ToString("HH:mm:ss")</span>
         </div>
     </section>
 
