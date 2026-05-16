@@ -468,7 +468,7 @@ for TARGET_USER in "${TARGET_USERS[@]}"; do
 [Desktop Entry]
 Type=Application
 Name=Terrarium Kiosk
-Exec=/bin/bash -lc 'KIOSK_WAIT_SECONDS=90 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"'
+Exec=env KIOSK_WAIT_SECONDS=90 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -527,7 +527,7 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=Start Kiosk Mode
-Exec=/bin/bash -lc 'KIOSK_WAIT_SECONDS=15 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"'
+Exec=env KIOSK_WAIT_SECONDS=15 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"
 Icon=applications-internet
 Terminal=false
 Categories=Network;
@@ -535,6 +535,11 @@ EOF
 
     chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
     chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+
+    # Mark desktop launcher as trusted where supported to avoid execute/open prompts.
+    if command -v gio >/dev/null 2>&1; then
+        su - "$TARGET_USER" -c "gio set '$DESKTOP_DIR/start-kiosk.desktop' metadata::trusted true" >/dev/null 2>&1 || true
+    fi
 
     # Remove stale launcher wrapper from previous setup runs.
     rm -f "$DESKTOP_DIR/start-kiosk.sh"
