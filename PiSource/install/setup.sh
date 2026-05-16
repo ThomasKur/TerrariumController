@@ -147,8 +147,30 @@ chmod 2775 /opt/terrarium/logs
 
 echo "Creating service environment file..."
 mkdir -p /etc/terrarium
-if [ ! -f /etc/terrarium/terrarium.env ]; then
-    cat > /etc/terrarium/terrarium.env << 'EOF'
+ENV_FILE="/etc/terrarium/terrarium.env"
+
+if [ -f "$ENV_FILE" ]; then
+    DELETE_ENV_FILE=false
+
+    if [ -t 0 ]; then
+        read -r -p "Environment file exists at $ENV_FILE. Delete and recreate it? [y/N]: " DELETE_ENV_INPUT
+        case "$DELETE_ENV_INPUT" in
+            [yY]|[yY][eE][sS])
+                DELETE_ENV_FILE=true
+                ;;
+        esac
+    else
+        echo "Non-interactive setup detected; keeping existing $ENV_FILE"
+    fi
+
+    if [ "$DELETE_ENV_FILE" = true ]; then
+        rm -f "$ENV_FILE"
+        echo "Deleted $ENV_FILE"
+    fi
+fi
+
+if [ ! -f "$ENV_FILE" ]; then
+    cat > "$ENV_FILE" << 'EOF'
 # Terrarium Controller environment configuration
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ASPNETCORE_ENVIRONMENT=Production
@@ -157,14 +179,14 @@ CAMERA_HEIGHT=1080
 CAMERA_FPS=15
 CAMERA_STREAM_PORT=5001
 EOF
-    echo "Created /etc/terrarium/terrarium.env"
+    echo "Created $ENV_FILE"
 else
-    echo "Keeping existing /etc/terrarium/terrarium.env"
+    echo "Keeping existing $ENV_FILE"
 fi
 
-if ! grep -q '^CAMERA_STREAM_PORT=' /etc/terrarium/terrarium.env; then
-    echo 'CAMERA_STREAM_PORT=5001' >> /etc/terrarium/terrarium.env
-    echo "Added CAMERA_STREAM_PORT=5001 to /etc/terrarium/terrarium.env"
+if ! grep -q '^CAMERA_STREAM_PORT=' "$ENV_FILE"; then
+    echo 'CAMERA_STREAM_PORT=5001' >> "$ENV_FILE"
+    echo "Added CAMERA_STREAM_PORT=5001 to $ENV_FILE"
 fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
