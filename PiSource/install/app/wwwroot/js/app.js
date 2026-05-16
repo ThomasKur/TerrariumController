@@ -2,7 +2,7 @@ function startCameraStream() {
     const img = document.getElementById('camera-feed');
     if (!img) return;
 
-    const cameraPort = 8080;
+    const cameraPort = 5001;
     const protocol = window.location.protocol === 'https:' ? 'http:' : window.location.protocol;
     // ffmpeg MJPEG server serves stream at root path
     const streamUrl = `${protocol}//${window.location.hostname}:${cameraPort}/`;

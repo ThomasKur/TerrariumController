@@ -5,6 +5,10 @@
         "/^pwsh -File PiSource/install/build-for-pi\\.ps1$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^pwsh -File PiSource/install/build-for-pi\\.ps1 -BuildType self-contained$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

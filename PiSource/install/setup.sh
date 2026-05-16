@@ -142,6 +142,8 @@ mkdir -p /opt/terrarium
 mkdir -p /opt/terrarium/logs
 chown terrarium:terrarium /opt/terrarium
 chown terrarium:terrarium /opt/terrarium/logs
+chmod 755 /opt/terrarium
+chmod 2775 /opt/terrarium/logs
 
 echo "Creating service environment file..."
 mkdir -p /etc/terrarium
@@ -153,11 +155,16 @@ ASPNETCORE_ENVIRONMENT=Production
 CAMERA_WIDTH=1920
 CAMERA_HEIGHT=1080
 CAMERA_FPS=15
-CAMERA_STREAM_PORT=8080
+CAMERA_STREAM_PORT=5001
 EOF
     echo "Created /etc/terrarium/terrarium.env"
 else
     echo "Keeping existing /etc/terrarium/terrarium.env"
+fi
+
+if ! grep -q '^CAMERA_STREAM_PORT=' /etc/terrarium/terrarium.env; then
+    echo 'CAMERA_STREAM_PORT=5001' >> /etc/terrarium/terrarium.env
+    echo "Added CAMERA_STREAM_PORT=5001 to /etc/terrarium/terrarium.env"
 fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
@@ -190,7 +197,7 @@ mkdir -p /opt/terrarium/logs
 WIDTH=${CAMERA_WIDTH:-640}
 HEIGHT=${CAMERA_HEIGHT:-480}
 FPS=${CAMERA_FPS:-15}
-STREAM_PORT=${CAMERA_STREAM_PORT:-8080}
+STREAM_PORT=${CAMERA_STREAM_PORT:-5001}
 
 LOG_FILE="/opt/terrarium/logs/camera-stream.log"
 
@@ -228,7 +235,7 @@ import threading
 from threading import Thread
 
 # Get configuration from environment variables
-stream_port = int(os.environ.get('CAMERA_STREAM_PORT', '8080'))
+stream_port = int(os.environ.get('CAMERA_STREAM_PORT', '5001'))
 width = int(os.environ.get('CAMERA_WIDTH', '640'))
 height = int(os.environ.get('CAMERA_HEIGHT', '480'))
 fps = int(os.environ.get('CAMERA_FPS', '15'))
@@ -515,6 +522,14 @@ done
 
 # Set GPIO permissions for non-root access
 echo "Configuring GPIO permissions..."
+build_target_users
+
+for TARGET_USER in "${TARGET_USERS[@]}"; do
+    if id "$TARGET_USER" >/dev/null 2>&1; then
+        usermod -a -G terrarium "$TARGET_USER"
+    fi
+done
+
 usermod -a -G dialout terrarium
 usermod -a -G video terrarium
 # Add gpio group if it exists
@@ -528,42 +543,75 @@ fi
 # Configure firewall if active
 echo "Checking firewall configuration..."
 FIREWALL_FOUND=false
+CAMERA_PORT=5001
+
+if [ -f /etc/terrarium/terrarium.env ]; then
+    CAMERA_PORT_FROM_ENV=$(grep -E '^CAMERA_STREAM_PORT=' /etc/terrarium/terrarium.env | tail -n 1 | cut -d'=' -f2 | tr -d '[:space:]')
+    if [[ "$CAMERA_PORT_FROM_ENV" =~ ^[0-9]+$ ]]; then
+        CAMERA_PORT="$CAMERA_PORT_FROM_ENV"
+    fi
+fi
 
 # Check UFW (Ubuntu/Debian)
 if command -v ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
-        echo "UFW firewall is active, opening port 5000..."
+        echo "UFW firewall is active, opening ports 5000 and $CAMERA_PORT..."
         ufw allow 5000/tcp
-        echo -e "${GREEN}Port 5000 opened in UFW firewall${NC}"
+        if [ "$CAMERA_PORT" != "5000" ]; then
+            ufw allow "$CAMERA_PORT"/tcp
+        fi
+        echo -e "${GREEN}Ports 5000 and $CAMERA_PORT opened in UFW firewall${NC}"
         FIREWALL_FOUND=true
     fi
 # Check firewalld (RHEL/CentOS)
 elif command -v firewall-cmd >/dev/null 2>&1; then
     if firewall-cmd --state 2>/dev/null | grep -q "running"; then
-        echo "firewalld is active, opening port 5000..."
+        echo "firewalld is active, opening ports 5000 and $CAMERA_PORT..."
         firewall-cmd --permanent --add-port=5000/tcp
+        if [ "$CAMERA_PORT" != "5000" ]; then
+            firewall-cmd --permanent --add-port="$CAMERA_PORT"/tcp
+        fi
         firewall-cmd --reload
-        echo -e "${GREEN}Port 5000 opened in firewalld${NC}"
+        echo -e "${GREEN}Ports 5000 and $CAMERA_PORT opened in firewalld${NC}"
         FIREWALL_FOUND=true
     fi
 # Check iptables (most common on Raspberry Pi OS)
 elif command -v iptables >/dev/null 2>&1; then
     # Check if iptables has rules (if it returns more than just headers, there are rules)
     if [ "$(iptables -L -n | wc -l)" -gt 8 ]; then
+        IPTABLES_RULE_CHANGED=false
+
         echo "iptables firewall detected, checking for port 5000 rule..."
         if ! iptables -C INPUT -p tcp --dport 5000 -j ACCEPT 2>/dev/null; then
             echo "Adding iptables rule for port 5000..."
             iptables -I INPUT -p tcp --dport 5000 -j ACCEPT
+            IPTABLES_RULE_CHANGED=true
+            echo -e "${GREEN}Port 5000 opened in iptables${NC}"
+        else
+            echo "Port 5000 already allowed in iptables"
+        fi
+
+        if [ "$CAMERA_PORT" != "5000" ]; then
+            echo "Checking iptables rule for camera port $CAMERA_PORT..."
+            if ! iptables -C INPUT -p tcp --dport "$CAMERA_PORT" -j ACCEPT 2>/dev/null; then
+                echo "Adding iptables rule for camera port $CAMERA_PORT..."
+                iptables -I INPUT -p tcp --dport "$CAMERA_PORT" -j ACCEPT
+                IPTABLES_RULE_CHANGED=true
+                echo -e "${GREEN}Port $CAMERA_PORT opened in iptables${NC}"
+            else
+                echo "Port $CAMERA_PORT already allowed in iptables"
+            fi
+        fi
+
+        if [ "$IPTABLES_RULE_CHANGED" = true ]; then
             # Save rules permanently
             if command -v netfilter-persistent >/dev/null 2>&1; then
                 netfilter-persistent save
             elif command -v iptables-save >/dev/null 2>&1; then
                 iptables-save > /etc/iptables/rules.v4 || true
             fi
-            echo -e "${GREEN}Port 5000 opened in iptables${NC}"
-        else
-            echo "Port 5000 already allowed in iptables"
         fi
+
         FIREWALL_FOUND=true
     else
         echo "iptables present but no restrictive rules detected"
@@ -571,7 +619,7 @@ elif command -v iptables >/dev/null 2>&1; then
 fi
 
 if [ "$FIREWALL_FOUND" = false ]; then
-    echo "No active firewall detected - port 5000 should be accessible"
+    echo "No active firewall detected - ports 5000 and $CAMERA_PORT should be accessible"
 fi
 
 # Deploy pre-built app if present
@@ -655,18 +703,19 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         # Check if app and camera ports are listening
         echo ""
         echo "Network status:"
+        CAMERA_PORT_RUNTIME="${CAMERA_STREAM_PORT:-5001}"
         if command -v netstat >/dev/null 2>&1; then
             netstat -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
-            netstat -tlnp | grep :8080 || echo -e "${YELLOW}Port 8080 (camera stream) not yet listening${NC}"
+            netstat -tlnp | grep ":${CAMERA_PORT_RUNTIME}" || echo -e "${YELLOW}Port ${CAMERA_PORT_RUNTIME} (camera stream) not yet listening${NC}"
         elif command -v ss >/dev/null 2>&1; then
             ss -tlnp | grep :5000 || echo -e "${YELLOW}Port 5000 not yet listening${NC}"
-            ss -tlnp | grep :8080 || echo -e "${YELLOW}Port 8080 (camera stream) not yet listening${NC}"
+            ss -tlnp | grep ":${CAMERA_PORT_RUNTIME}" || echo -e "${YELLOW}Port ${CAMERA_PORT_RUNTIME} (camera stream) not yet listening${NC}"
         fi
 
         # Try to connect to app and camera services
         echo ""
         if command -v curl >/dev/null 2>&1; then
-            CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-8080}/"
+            CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-5001}/"
             if curl -fsS --connect-timeout 5 --max-time 10 "$CAMERA_URL" >/dev/null 2>&1; then
                 echo -e "${GREEN}✓ Camera endpoint responded${NC}"
             else
