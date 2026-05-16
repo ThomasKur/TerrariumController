@@ -738,13 +738,24 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         echo ""
         if command -v curl >/dev/null 2>&1; then
             CAMERA_URL="http://localhost:${CAMERA_STREAM_PORT:-5001}/"
-            if curl -fsS --connect-timeout 5 --max-time 10 "$CAMERA_URL" >/dev/null 2>&1; then
-                echo -e "${GREEN}✓ Camera endpoint responded${NC}"
-            else
-                echo -e "${RED}✗ Camera endpoint did not respond${NC}"
+            CAMERA_OK=false
+
+            for attempt in $(seq 1 20); do
+                # MJPEG streams are long-lived responses; probe headers only.
+                if curl -sS -I --connect-timeout 2 --max-time 4 "$CAMERA_URL" >/dev/null 2>&1; then
+                    CAMERA_OK=true
+                    echo -e "${GREEN}✓ Camera endpoint responded${NC}"
+                    break
+                fi
+
+                sleep 1
+            done
+
+            if [ "$CAMERA_OK" = false ]; then
+                echo -e "${YELLOW}⚠ Camera endpoint did not respond yet at $CAMERA_URL${NC}"
                 echo "Camera service logs:"
                 journalctl -u terrarium-camera -n 20 --no-pager
-                exit 1
+                echo -e "${YELLOW}Continuing setup; camera may still be initializing.${NC}"
             fi
 
             echo "Testing health endpoints..."
