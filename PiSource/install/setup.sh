@@ -207,6 +207,23 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
+# Create kiosk desktop wrapper script
+# This wrapper is invoked directly by .desktop Exec and ensures reliable logging
+echo "Creating kiosk desktop wrapper script..."
+cat > /opt/terrarium/start-kiosk-desktop.sh << 'EOF'
+#!/bin/bash
+# Kiosk launcher wrapper for desktop/autostart invocation
+# This wrapper ensures proper environment setup and logging for .desktop file execution
+
+export KIOSK_WAIT_SECONDS="${1:-15}"
+export KIOSK_LOG_FILE="/opt/terrarium/logs/terrarium-kiosk-desktop.log"
+
+mkdir -p /opt/terrarium/logs
+
+exec /bin/bash /opt/terrarium/start-kiosk.sh "http://localhost:5000" >> "$KIOSK_LOG_FILE" 2>&1
+EOF
+chmod +x /opt/terrarium/start-kiosk-desktop.sh
+
 # Create camera runner script using Python HTTP server for MJPEG
 # Modern Raspberry Pi OS (Bookworm+) does not include mjpeg-streamer.
 # This script uses rpicam-vid to generate MJPEG and serves it via Python HTTP server.
@@ -468,7 +485,7 @@ for TARGET_USER in "${TARGET_USERS[@]}"; do
 [Desktop Entry]
 Type=Application
 Name=Terrarium Kiosk
-Exec=env KIOSK_WAIT_SECONDS=90 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"
+Exec=/opt/terrarium/start-kiosk-desktop.sh 90
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -527,7 +544,7 @@ EOF
 [Desktop Entry]
 Type=Application
 Name=Start Kiosk Mode
-Exec=env KIOSK_WAIT_SECONDS=15 /bin/bash "$SCRIPT_DIR/start-kiosk.sh" "http://localhost:5000"
+Exec=/opt/terrarium/start-kiosk-desktop.sh 15
 Icon=applications-internet
 Terminal=false
 Categories=Network;
