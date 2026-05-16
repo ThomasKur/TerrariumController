@@ -842,8 +842,7 @@ echo "  http://$(hostname -I | awk '{print $1}'):5000"
 echo ""
 if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     echo -e "${YELLOW}Note: You ($SUDO_USER) have been added to the terrarium group.${NC}"
-    echo -e "${YELLOW}To apply group membership, log out and back in, or run:${NC}"
-    echo -e "${YELLOW}  newgrp terrarium${NC}"
+    echo -e "${YELLOW}To apply group membership, log out and back in.${NC}"
     echo ""
 fi
 echo "Useful commands:"

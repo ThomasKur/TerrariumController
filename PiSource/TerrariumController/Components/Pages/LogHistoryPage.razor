@@ -32,44 +32,46 @@
             <label>
                 Page Size:
                 <select @onchange="OnPageSizeChanged">
-                    <option value="10">10 per page</option>
-                    <option value="25">25 per page</option>
+                    <option value="30">30 per page</option>
                     <option value="50">50 per page</option>
+                    <option value="100">100 per page</option>
                 </select>
             </label>
         </div>
 
-        <table class="log-table">
-            <thead>
-                <tr>
-                    <th>Timestamp</th>
-                    <th>Type</th>
-                    <th>Details</th>
-                    <th>Temp 1</th>
-                    <th>RH 1</th>
-                    <th>Temp 2</th>
-                    <th>RH 2</th>
-                    <th>Temp 3</th>
-                    <th>RH 3</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var log in LogEntries)
-                {
-                    <tr class="@(log.LogType == "StateChange" ? "state-change" : "snapshot")">
-                        <td class="timestamp">@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td class="type">@log.LogType</td>
-                        <td class="details">@log.Details</td>
-                        <td class="detailsData">@(log.Sensor1Temperature?.ToString("F1") ?? "-")</td>
-                        <td class="detailsData">@(log.Sensor1Humidity?.ToString("F0") ?? "-")%</td>
-                        <td class="detailsData">@(log.Sensor2Temperature?.ToString("F1") ?? "-")</td>
-                        <td class="detailsData">@(log.Sensor2Humidity?.ToString("F0") ?? "-")%</td>
-                        <td class="detailsData">@(log.Sensor3Temperature?.ToString("F1") ?? "-")</td>
-                        <td class="detailsData">@(log.Sensor3Humidity?.ToString("F0") ?? "-")%</td>
+        <div class="log-table-wrapper">
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Details</th>
+                        <th>Temp 1</th>
+                        <th>RH 1</th>
+                        <th>Temp 2</th>
+                        <th>RH 2</th>
+                        <th>Temp 3</th>
+                        <th>RH 3</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var log in LogEntries)
+                    {
+                        <tr class="@(log.LogType == "StateChange" ? "state-change" : "snapshot")">
+                            <td class="timestamp">@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td class="type">@log.LogType</td>
+                            <td class="details">@log.Details</td>
+                            <td class="detailsData">@(log.Sensor1Temperature?.ToString("F1") ?? "-")</td>
+                            <td class="detailsData">@(log.Sensor1Humidity?.ToString("F0") ?? "-")%</td>
+                            <td class="detailsData">@(log.Sensor2Temperature?.ToString("F1") ?? "-")</td>
+                            <td class="detailsData">@(log.Sensor2Humidity?.ToString("F0") ?? "-")%</td>
+                            <td class="detailsData">@(log.Sensor3Temperature?.ToString("F1") ?? "-")</td>
+                            <td class="detailsData">@(log.Sensor3Humidity?.ToString("F0") ?? "-")%</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
         <div class="pagination">
             <button @onclick="PreviousPage" disabled="@(CurrentPage <= 1)" class="btn-paging">← Previous</button>
@@ -147,10 +149,15 @@
         width: 100%;
         background: white;
         border-collapse: collapse;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        table-layout: auto;
+    }
+
+    .log-table-wrapper {
+        overflow-x: auto;
         border-radius: 6px;
-        overflow: hidden;
         margin-bottom: 2rem;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
     .log-table thead {
@@ -159,16 +166,18 @@
     }
 
     .log-table th {
-        padding: 1rem;
+        padding: 0.5rem 0.6rem;
         text-align: left;
         font-weight: 600;
         border-bottom: 2px solid #ddd;
+        font-size: 0.85rem;
+        white-space: nowrap;
     }
 
     .log-table td {
-        padding: 0.75rem 1rem;
+        padding: 0.4rem 0.6rem;
         border-bottom: 1px solid #eee;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
 
     .log-table tbody tr:hover {
@@ -195,10 +204,16 @@
 
     .details {
         color: #555;
-        max-width: 300px;
+        max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        font-size: 0.8rem;
+    }
+
+    .detailsData {
+        text-align: center;
+        font-variant-numeric: tabular-nums;
     }
 
     .pagination {
@@ -242,7 +257,7 @@
 @code {
     private List<LogEntry> LogEntries = null!;
     private string SelectedType = "";
-    private int PageSize = 25;
+    private int PageSize = 30;
     private int CurrentPage = 1;
     private int TotalPages = 1;
     private int TotalCount = 0;
