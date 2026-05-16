@@ -568,9 +568,12 @@ done
 echo "Configuring GPIO permissions..."
 build_target_users
 
+echo "Target users for group membership: ${TARGET_USERS[*]}"
+
 for TARGET_USER in "${TARGET_USERS[@]}"; do
     if id "$TARGET_USER" >/dev/null 2>&1; then
         usermod -a -G terrarium "$TARGET_USER"
+        echo "Added $TARGET_USER to terrarium group"
     fi
 done
 
@@ -837,6 +840,12 @@ echo "Access the UI at:"
 echo "  http://localhost:5000"
 echo "  http://$(hostname -I | awk '{print $1}'):5000"
 echo ""
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    echo -e "${YELLOW}Note: You ($SUDO_USER) have been added to the terrarium group.${NC}"
+    echo -e "${YELLOW}To apply group membership, log out and back in, or run:${NC}"
+    echo -e "${YELLOW}  newgrp terrarium${NC}"
+    echo ""
+fi
 echo "Useful commands:"
 echo "  Restart service:  sudo systemctl restart terrarium"
 echo "  View logs:        sudo journalctl -u terrarium -f"
