@@ -207,23 +207,6 @@ EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
 
-# Create kiosk desktop wrapper script
-# This wrapper is invoked directly by .desktop Exec and ensures reliable logging
-echo "Creating kiosk desktop wrapper script..."
-cat > /opt/terrarium/start-kiosk-desktop.sh << 'EOF'
-#!/bin/bash
-# Kiosk launcher wrapper for desktop/autostart invocation
-# This wrapper ensures proper environment setup and logging for .desktop file execution
-
-export KIOSK_WAIT_SECONDS="${1:-15}"
-export KIOSK_LOG_FILE="/opt/terrarium/logs/terrarium-kiosk-desktop.log"
-
-mkdir -p /opt/terrarium/logs
-
-exec /bin/bash /opt/terrarium/start-kiosk.sh "http://localhost:5000" >> "$KIOSK_LOG_FILE" 2>&1
-EOF
-chmod +x /opt/terrarium/start-kiosk-desktop.sh
-
 # Create camera runner script using Python HTTP server for MJPEG
 # Modern Raspberry Pi OS (Bookworm+) does not include mjpeg-streamer.
 # This script uses rpicam-vid to generate MJPEG and serves it via Python HTTP server.
@@ -485,7 +468,7 @@ for TARGET_USER in "${TARGET_USERS[@]}"; do
 [Desktop Entry]
 Type=Application
 Name=Terrarium Kiosk
-Exec=/opt/terrarium/start-kiosk-desktop.sh 90
+Exec=env KIOSK_WAIT_SECONDS=90 KIOSK_LOG_FILE=/opt/terrarium/logs/terrarium-kiosk-desktop.log /bin/bash /opt/terrarium/start-kiosk.sh http://localhost:5000
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
@@ -540,28 +523,20 @@ echo "Re-running setup.sh..."
 bash "\$INSTALL_DIR/setup.sh"
 EOF
 
-    cat > "$DESKTOP_DIR/start-kiosk.desktop" << EOF
-[Desktop Entry]
-Type=Application
-Name=Start Kiosk Mode
-Exec=/opt/terrarium/start-kiosk-desktop.sh 15
-Icon=applications-internet
-Terminal=false
-Categories=Network;
+    cat > "$DESKTOP_DIR/start-kiosk.sh" << EOF
+#!/bin/bash
+# Desktop launcher for Terrarium Kiosk Mode
+# This executable script can be run directly by the desktop manager without prompts
+exec env KIOSK_WAIT_SECONDS=15 KIOSK_LOG_FILE=/opt/terrarium/logs/terrarium-kiosk-desktop.log /bin/bash /opt/terrarium/start-kiosk.sh http://localhost:5000
 EOF
 
-    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
-    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.desktop"
+    chown "$TARGET_USER:$TARGET_USER" "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh"
+    chmod +x "$DESKTOP_DIR/update.sh" "$DESKTOP_DIR/start-kiosk.sh"
 
-    # Mark desktop launcher as trusted where supported to avoid execute/open prompts.
-    if command -v gio >/dev/null 2>&1; then
-        su - "$TARGET_USER" -c "gio set '$DESKTOP_DIR/start-kiosk.desktop' metadata::trusted true" >/dev/null 2>&1 || true
-    fi
+    # Remove stale .desktop file from previous setup runs.
+    rm -f "$DESKTOP_DIR/start-kiosk.desktop"
 
-    # Remove stale launcher wrapper from previous setup runs.
-    rm -f "$DESKTOP_DIR/start-kiosk.sh"
-
-    echo "Created desktop launchers for user: $TARGET_USER"
+    echo "Created desktop launchers for user: $TARGET_USER ($DESKTOP_DIR)"
 done
 
 # Set GPIO permissions for non-root access
