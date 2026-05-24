@@ -426,39 +426,6 @@ else
     echo -e "${YELLOW}Warning: no libgpiod runtime package found in repositories (trying fallback GPIO driver at runtime)${NC}"
 fi
 
-# Some .NET GPIO bindings may probe older libgpiod sonames.
-# If only a newer soname is present (for example libgpiod.so.3), create compatibility symlinks.
-if command -v ldconfig >/dev/null 2>&1; then
-    LIBGPIOD_TARGET=""
-
-    # Choose the highest available soname as symlink target.
-    for soname in libgpiod.so.3 libgpiod.so.2 libgpiod.so.1; do
-        if ldconfig -p 2>/dev/null | grep -q "$soname"; then
-            LIBGPIOD_TARGET="$soname"
-            break
-        fi
-    done
-
-    if [ -n "$LIBGPIOD_TARGET" ]; then
-        MULTIARCH_DIR="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || true)"
-        if [ -n "$MULTIARCH_DIR" ] && [ -d "/usr/lib/$MULTIARCH_DIR" ]; then
-            LIB_DIR="/usr/lib/$MULTIARCH_DIR"
-        else
-            LIB_DIR="/usr/lib"
-        fi
-
-        for compat in libgpiod.so.2 libgpiod.so.1; do
-            if ! ldconfig -p 2>/dev/null | grep -q "$compat"; then
-                if [ ! -e "$LIB_DIR/$compat" ]; then
-                    ln -s "$LIBGPIOD_TARGET" "$LIB_DIR/$compat" 2>/dev/null || true
-                fi
-            fi
-        done
-
-        ldconfig || true
-    fi
-fi
-
 # Optional: headers for native builds/debugging.
 if apt-cache show libgpiod-dev >/dev/null 2>&1; then
     if apt install -y libgpiod-dev; then

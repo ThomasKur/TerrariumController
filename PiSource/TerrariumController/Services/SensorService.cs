@@ -249,6 +249,13 @@ namespace TerrariumController.Services
                             "libgpiod is not installed. Install it on Raspberry Pi OS with: sudo apt update && sudo apt install -y libgpiod3 gpiod || sudo apt install -y libgpiod2 gpiod || sudo apt install -y libgpiod gpiod");
                         break;
                     }
+                    catch (EntryPointNotFoundException ex)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "libgpiod ABI mismatch detected on {GpioChipPath}. Remove any manual libgpiod soname symlinks and use distro-provided libgpiod files.",
+                            gpioChipPath);
+                    }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Failed to create libgpiod sensor GPIO driver on {GpioChipPath}", gpioChipPath);
@@ -256,6 +263,20 @@ namespace TerrariumController.Services
                 }
 
                 _logger.LogWarning("No usable libgpiod gpiochip device found for sensors; falling back to default GPIO driver");
+
+                try
+                {
+                    if (Directory.Exists("/sys/class/gpio"))
+                    {
+                        _logger.LogInformation("Trying SysFs GPIO driver fallback for sensors");
+                        SensorGpioController = new GpioController(new SysFsDriver());
+                        return SensorGpioController;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create SysFs GPIO fallback driver for sensors");
+                }
             }
 
             SensorGpioController = new GpioController();
