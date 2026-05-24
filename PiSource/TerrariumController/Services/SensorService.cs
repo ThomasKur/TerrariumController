@@ -263,20 +263,6 @@ namespace TerrariumController.Services
                 }
 
                 _logger.LogWarning("No usable libgpiod gpiochip device found for sensors; falling back to default GPIO driver");
-
-                try
-                {
-                    if (Directory.Exists("/sys/class/gpio"))
-                    {
-                        _logger.LogInformation("Trying SysFs GPIO driver fallback for sensors");
-                        SensorGpioController = new GpioController(new SysFsDriver());
-                        return SensorGpioController;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to create SysFs GPIO fallback driver for sensors");
-                }
             }
 
             SensorGpioController = new GpioController();

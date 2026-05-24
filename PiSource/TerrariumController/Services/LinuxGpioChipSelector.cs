@@ -6,8 +6,28 @@ namespace TerrariumController.Services
         {
             if (configuredLinuxChipId.HasValue)
             {
+                // Use the configured chip first, but still fall through to discovered chips
+                // if the configured chip device file does not exist, to recover from misconfiguration.
                 logger.LogInformation("Linux GPIO chip explicitly configured to gpiochip{ChipId}", configuredLinuxChipId.Value);
-                return new[] { configuredLinuxChipId.Value };
+                var preferred = new List<int> { configuredLinuxChipId.Value };
+
+                // Append remaining discovered chips as fallback candidates.
+                try
+                {
+                    foreach (var path in Directory.EnumerateFiles("/dev", "gpiochip*"))
+                    {
+                        var fileName = Path.GetFileName(path);
+                        if (fileName.StartsWith("gpiochip", StringComparison.OrdinalIgnoreCase)
+                            && int.TryParse(fileName[8..], out var fallbackId)
+                            && fallbackId != configuredLinuxChipId.Value)
+                        {
+                            preferred.Add(fallbackId);
+                        }
+                    }
+                }
+                catch { }
+
+                return preferred;
             }
 
             var discoveredChipIds = new List<int>();
