@@ -156,6 +156,14 @@ gpiodetect
 sudo systemctl restart terrarium
 ```
 
+If you run standalone sensor tests like `test_dht22.py`, stop the app first to avoid `GPIO busy`:
+
+```bash
+sudo systemctl stop terrarium
+# run python sensor tests
+sudo systemctl start terrarium
+```
+
 **Camera not streaming**:
 ```bash
 # Check if camera service is running

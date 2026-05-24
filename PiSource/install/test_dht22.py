@@ -7,8 +7,17 @@ Default: GPIO 23 (BCM), 5 attempts with 2s delay
 
 import sys
 import time
-import board
-import adafruit_dht
+
+try:
+    import board
+    import adafruit_dht
+except ModuleNotFoundError as ex:
+    print(f"Missing Python module: {ex.name}")
+    print("Install test dependencies with:")
+    print("  sudo apt update")
+    print("  sudo apt install -y python3-pip python3-libgpiod python3-rpi.gpio")
+    print("  sudo python3 -m pip install --break-system-packages adafruit-blinka adafruit-circuitpython-dht")
+    sys.exit(2)
 
 def test_dht22(gpio_pin=23, attempts=5):
     """Test DHT22 sensor on specified BCM GPIO pin"""
@@ -54,6 +63,12 @@ def test_dht22(gpio_pin=23, attempts=5):
         
     except Exception as e:
         print(f"Error: {e}")
+        if "busy" in str(e).lower():
+            print("\nGPIO is in use by another process (often the terrarium service).")
+            print("Stop it temporarily while testing:")
+            print("  sudo systemctl stop terrarium")
+            print("Then rerun this test and restart afterwards:")
+            print("  sudo systemctl start terrarium")
         print("\nTroubleshooting:")
         print("1. Install adafruit-circuitpython-dht: pip3 install adafruit-circuitpython-dht")
         print("2. Verify wiring:")
