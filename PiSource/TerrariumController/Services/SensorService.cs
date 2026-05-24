@@ -26,6 +26,7 @@ namespace TerrariumController.Services
         private static readonly Dictionary<int, SensorRuntime> SensorRuntimes = new();
         private static readonly object SensorRuntimeSync = new();
         private static GpioController? SensorGpioController;
+        private static int? ConfiguredLinuxSensorChipId;
 
         private sealed class SensorRuntime
         {
@@ -54,7 +55,11 @@ namespace TerrariumController.Services
         {
             try
             {
-                var sensorGpioMap = await GetSensorGpioMapAsync();
+                var settings = await _settingsService.GetSettingsAsync();
+                int? configuredLinuxChipId = settings.LinuxGpioChip >= 0 ? settings.LinuxGpioChip : null;
+                EnsureSensorControllerConfiguration(configuredLinuxChipId);
+
+                var sensorGpioMap = GetSensorGpioMap(settings);
 
                 if (!sensorGpioMap.TryGetValue(sensorId, out int gpioPin))
                 {
@@ -132,7 +137,7 @@ namespace TerrariumController.Services
             {
                 _logger.LogInformation("Reading DHT22 Sensor {SensorId} on BCM GPIO {GpioPin}", sensorId, gpioPin);
 
-                var runtime = GetOrCreateSensorRuntime(sensorId, gpioPin);
+                var runtime = GetOrCreateSensorRuntime(sensorId, gpioPin, ConfiguredLinuxSensorChipId);
                 await runtime.ReadLock.WaitAsync();
 
                 try
@@ -167,7 +172,7 @@ namespace TerrariumController.Services
             }
         }
 
-        private SensorRuntime GetOrCreateSensorRuntime(int sensorId, int gpioPin)
+        private SensorRuntime GetOrCreateSensorRuntime(int sensorId, int gpioPin, int? configuredLinuxChipId)
         {
             lock (SensorRuntimeSync)
             {
@@ -184,13 +189,35 @@ namespace TerrariumController.Services
                     _logger.LogInformation("Recreating DHT22 runtime for Sensor {SensorId} after GPIO change to BCM {GpioPin}", sensorId, gpioPin);
                 }
 
-                var created = new SensorRuntime(gpioPin, GetOrCreateSensorGpioController());
+                var created = new SensorRuntime(gpioPin, GetOrCreateSensorGpioController(configuredLinuxChipId));
                 SensorRuntimes[sensorId] = created;
                 return created;
             }
         }
 
-        private GpioController GetOrCreateSensorGpioController()
+        private void EnsureSensorControllerConfiguration(int? configuredLinuxChipId)
+        {
+            lock (SensorRuntimeSync)
+            {
+                if (ConfiguredLinuxSensorChipId == configuredLinuxChipId)
+                {
+                    return;
+                }
+
+                foreach (var runtime in SensorRuntimes.Values)
+                {
+                    runtime.Sensor.Dispose();
+                    runtime.ReadLock.Dispose();
+                }
+
+                SensorRuntimes.Clear();
+                SensorGpioController?.Dispose();
+                SensorGpioController = null;
+                ConfiguredLinuxSensorChipId = configuredLinuxChipId;
+            }
+        }
+
+        private GpioController GetOrCreateSensorGpioController(int? configuredLinuxChipId)
         {
             if (SensorGpioController != null)
             {
@@ -199,22 +226,29 @@ namespace TerrariumController.Services
 
             if (OperatingSystem.IsLinux())
             {
-                try
+                var candidateChipIds = LinuxGpioChipSelector.GetCandidateChipIds(_logger, configuredLinuxChipId);
+                foreach (var chipId in candidateChipIds)
                 {
-                    const string gpioChipPath = "/dev/gpiochip0";
-                    if (File.Exists(gpioChipPath))
+                    var gpioChipPath = $"/dev/gpiochip{chipId}";
+                    if (!File.Exists(gpioChipPath))
                     {
-                        _logger.LogInformation("Using libgpiod GPIO driver for DHT22 sensors on {GpioChipPath}", gpioChipPath);
-                        SensorGpioController = new GpioController(new LibGpiodDriver(0));
-                        return SensorGpioController;
+                        continue;
                     }
 
-                    _logger.LogWarning("{GpioChipPath} not found; falling back to default GPIO driver for sensors", gpioChipPath);
+                    try
+                    {
+                        _logger.LogInformation("Trying libgpiod GPIO driver for DHT22 sensors on {GpioChipPath}", gpioChipPath);
+                        SensorGpioController = new GpioController(new LibGpiodDriver(chipId));
+                        _logger.LogInformation("Using libgpiod GPIO driver for DHT22 sensors on {GpioChipPath}", gpioChipPath);
+                        return SensorGpioController;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create libgpiod sensor GPIO driver on {GpioChipPath}", gpioChipPath);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to create libgpiod sensor GPIO driver; falling back to default GPIO driver");
-                }
+
+                _logger.LogWarning("No usable libgpiod gpiochip device found for sensors; falling back to default GPIO driver");
             }
 
             SensorGpioController = new GpioController();
@@ -223,10 +257,8 @@ namespace TerrariumController.Services
 
         // Legacy manual bit-banging implementation removed in favor of Iot.Device.DHTxx
 
-        private async Task<Dictionary<int, int>> GetSensorGpioMapAsync()
+        private Dictionary<int, int> GetSensorGpioMap(Settings settings)
         {
-            var settings = await _settingsService.GetSettingsAsync();
-
             var map = new Dictionary<int, int>();
             AddConfiguredSensor(map, 1, settings.Sensor1GPIO);
             AddConfiguredSensor(map, 2, settings.Sensor2GPIO);

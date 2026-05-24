@@ -52,6 +52,7 @@ namespace TerrariumController.Data
                     Sensor1GPIO = 16,
                     Sensor2GPIO = 15,
                     Sensor3GPIO = 22,
+                    LinuxGpioChip = -1,
                     CameraWidth = 1280,
                     CameraHeight = 720,
                     CameraFramerate = 15,

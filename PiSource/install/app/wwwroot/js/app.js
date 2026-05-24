@@ -18,6 +18,8 @@ function startCameraStream() {
 }
 
 function closeKioskWindow() {
+    requestKioskExit();
+
     if (document.fullscreenElement && document.exitFullscreen) {
         document.exitFullscreen().catch(() => {});
     }
@@ -33,5 +35,22 @@ function closeKioskWindow() {
             window.location.replace('about:blank');
         }
     }, 150);
+}
+
+function requestKioskExit() {
+    const exitUrl = '/api/kiosk/exit';
+
+    if (navigator.sendBeacon) {
+        const sent = navigator.sendBeacon(exitUrl, new Blob([], { type: 'text/plain' }));
+        if (sent) {
+            return;
+        }
+    }
+
+    fetch(exitUrl, {
+        method: 'POST',
+        cache: 'no-store',
+        keepalive: true
+    }).catch(() => {});
 }
 

@@ -139,6 +139,23 @@
 
             <!-- Sensor GPIO Configuration -->
             <section class="settings-section">
+                <h2>Linux GPIO Chip</h2>
+                <div class="setting-group">
+                    <label>
+                        GPIO chip id:
+                        <select @bind="CurrentSettings.LinuxGpioChip">
+                            <option value="-1">Auto detect</option>
+                            <option value="0">gpiochip0</option>
+                            <option value="4">gpiochip4</option>
+                        </select>
+                        <span class="value">@(CurrentSettings.LinuxGpioChip < 0 ? "Auto" : $"gpiochip{CurrentSettings.LinuxGpioChip}")</span>
+                    </label>
+                </div>
+                <div class="info-text">Use Auto detect (recommended). For Raspberry Pi 5 you can force gpiochip4. For older boards you can force gpiochip0.</div>
+            </section>
+
+            <!-- Sensor GPIO Configuration -->
+            <section class="settings-section">
                 <h2>Sensor GPIO (BOARD)</h2>
                 <div class="gpio-grid">
                     <div class="setting-group">
@@ -341,7 +358,8 @@
 
     .setting-group input[type=number],
     .setting-group input[type=text],
-    .setting-group input[type=time] {
+    .setting-group input[type=time],
+    .setting-group select {
         padding: 0.45rem 0.75rem;
         background: rgba(255, 255, 255, 0.06);
         border: 1px solid rgba(255, 255, 255, 0.14);
@@ -695,6 +713,11 @@
         if (sensorPins.Distinct().Count() != sensorPins.Length)
         {
             errors.Add("Sensor GPIO pins must be unique.");
+        }
+
+        if (CurrentSettings.LinuxGpioChip < -1)
+        {
+            errors.Add("Linux GPIO chip must be -1 (auto) or a non-negative chip id.");
         }
 
         return errors;

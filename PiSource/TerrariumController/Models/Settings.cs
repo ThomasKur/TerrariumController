@@ -35,6 +35,9 @@ namespace TerrariumController.Models
         public int Sensor2GPIO { get; set; } = 15;
         public int Sensor3GPIO { get; set; } = 22;
 
+        // Linux gpiochip device selection (-1 = auto-detect, 0/4/etc = force specific chip)
+        public int LinuxGpioChip { get; set; } = -1;
+
         // Camera settings
         public int CameraWidth { get; set; } = 1280;
         public int CameraHeight { get; set; } = 720;

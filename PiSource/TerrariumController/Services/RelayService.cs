@@ -25,6 +25,7 @@ namespace TerrariumController.Services
         private readonly Dictionary<int, bool> _relayStates = new();
         private readonly Dictionary<int, double?> _lastTemperatures = new();
         private static GpioController? _gpioController;
+        private static int? _configuredLinuxGpioChipId;
         private Dictionary<int, int> _relayGpioPins = new();
         private Dictionary<int, int> _relayBoardPins = new();
 
@@ -77,10 +78,14 @@ namespace TerrariumController.Services
                     }
                 }
 
-                if (_gpioController == null)
+                int? configuredLinuxChipId = settings.LinuxGpioChip >= 0 ? settings.LinuxGpioChip : null;
+
+                if (_gpioController == null || _configuredLinuxGpioChipId != configuredLinuxChipId)
                 {
+                    _gpioController?.Dispose();
                     // Relay GPIO values in Settings are BOARD pin numbers.
-                    _gpioController = CreateGpioController();
+                    _gpioController = CreateGpioController(configuredLinuxChipId);
+                    _configuredLinuxGpioChipId = configuredLinuxChipId;
                 }
 
                 // Initialize all relay pins as outputs (inactive/low)
@@ -118,25 +123,33 @@ namespace TerrariumController.Services
             }
         }
 
-        private GpioController CreateGpioController()
+        private GpioController CreateGpioController(int? configuredLinuxChipId)
         {
             if (OperatingSystem.IsLinux())
             {
-                try
+                var candidateChipIds = LinuxGpioChipSelector.GetCandidateChipIds(_logger, configuredLinuxChipId);
+                foreach (var chipId in candidateChipIds)
                 {
-                    const string gpioChipPath = "/dev/gpiochip0";
-                    if (File.Exists(gpioChipPath))
+                    var gpioChipPath = $"/dev/gpiochip{chipId}";
+                    if (!File.Exists(gpioChipPath))
                     {
-                        _logger.LogInformation("Using libgpiod GPIO driver on {GpioChipPath}", gpioChipPath);
-                        return new GpioController(new LibGpiodDriver(0));
+                        continue;
                     }
 
-                    _logger.LogWarning("{GpioChipPath} not found; falling back to default GPIO driver", gpioChipPath);
+                    try
+                    {
+                        _logger.LogInformation("Trying libgpiod GPIO driver on {GpioChipPath}", gpioChipPath);
+                        var controller = new GpioController(new LibGpiodDriver(chipId));
+                        _logger.LogInformation("Using libgpiod GPIO driver on {GpioChipPath}", gpioChipPath);
+                        return controller;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create libgpiod GPIO driver on {GpioChipPath}", gpioChipPath);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to create libgpiod GPIO driver; falling back to default GPIO driver");
-                }
+
+                _logger.LogWarning("No usable libgpiod gpiochip device found; falling back to default GPIO driver");
             }
 
             _logger.LogInformation("Using default GPIO driver");
@@ -206,6 +219,7 @@ namespace TerrariumController.Services
 
                     _gpioController.Dispose();
                     _gpioController = null;
+                    _configuredLinuxGpioChipId = null;
                 }
             }
             catch (Exception ex)

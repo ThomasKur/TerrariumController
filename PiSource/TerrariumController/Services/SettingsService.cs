@@ -46,7 +46,7 @@ namespace TerrariumController.Services
             await _context.SaveChangesAsync();
             _logger.LogInformation("Settings updated at {Timestamp}", DateTime.UtcNow);
             _logger.LogInformation(
-                "Effective settings snapshot: T1={T1:F1}, T2={T2:F1}, T3={T3:F1}, Hysteresis={Hysteresis:F1}, RH1={RH1:F1}, Relay4On={Relay4On}, Relay4Off={Relay4Off}, LockoutHours={LockoutHours}, RelayPins={RelayPins}, SensorPins={SensorPins}",
+                "Effective settings snapshot: T1={T1:F1}, T2={T2:F1}, T3={T3:F1}, Hysteresis={Hysteresis:F1}, RH1={RH1:F1}, Relay4On={Relay4On}, Relay4Off={Relay4Off}, LockoutHours={LockoutHours}, RelayPins={RelayPins}, SensorPins={SensorPins}, LinuxGpioChip={LinuxGpioChip}",
                 settings.Threshold1Temperature,
                 settings.Threshold2Temperature,
                 settings.Threshold3Temperature,
@@ -56,7 +56,8 @@ namespace TerrariumController.Services
                 settings.Relay4OffTime,
                 settings.HumidityLockoutHours,
                 string.Join(",", new[] { settings.Relay1GPIO, settings.Relay2GPIO, settings.Relay3GPIO, settings.Relay4GPIO, settings.Relay5GPIO, settings.Relay6GPIO }),
-                string.Join(",", new[] { settings.Sensor1GPIO, settings.Sensor2GPIO, settings.Sensor3GPIO }));
+                string.Join(",", new[] { settings.Sensor1GPIO, settings.Sensor2GPIO, settings.Sensor3GPIO }),
+                settings.LinuxGpioChip);
             _controlLoopSignal.RequestImmediateEvaluation("Settings updated");
         }
 
@@ -111,6 +112,11 @@ namespace TerrariumController.Services
             if (sensorPins.Distinct().Count() != sensorPins.Length)
             {
                 throw new ArgumentException("Sensor GPIO pins must be unique.");
+            }
+
+            if (settings.LinuxGpioChip < -1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(settings.LinuxGpioChip), "Linux GPIO chip must be -1 (auto) or a non-negative chip id.");
             }
         }
 
