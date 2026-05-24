@@ -177,6 +177,7 @@ if [ ! -f "$ENV_FILE" ]; then
 # Terrarium Controller environment configuration
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ASPNETCORE_ENVIRONMENT=Production
+HardwareSidecar__Mode=Embedded
 CAMERA_WIDTH=1920
 CAMERA_HEIGHT=1080
 CAMERA_FPS=15
@@ -190,6 +191,11 @@ fi
 if ! grep -q '^CAMERA_STREAM_PORT=' "$ENV_FILE"; then
     echo 'CAMERA_STREAM_PORT=5001' >> "$ENV_FILE"
     echo "Added CAMERA_STREAM_PORT=5001 to $ENV_FILE"
+fi
+
+if ! grep -q '^HardwareSidecar__Mode=' "$ENV_FILE"; then
+    echo 'HardwareSidecar__Mode=Embedded' >> "$ENV_FILE"
+    echo "Added HardwareSidecar__Mode=Embedded to $ENV_FILE"
 fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
@@ -533,7 +539,16 @@ systemctl enable terrarium
 systemctl enable terrarium-camera
 
 ENABLE_SIDECAR=false
-if command -v python3 >/dev/null 2>&1 && [ -f "/opt/terrarium/appsettings.json" ]; then
+
+# Environment variable in /etc/terrarium/terrarium.env takes precedence.
+if [ -f "$ENV_FILE" ]; then
+    SIDECAR_MODE_ENV=$(grep '^HardwareSidecar__Mode=' "$ENV_FILE" | tail -n 1 | cut -d '=' -f2- | tr -d '[:space:]' || true)
+    if [ "$(printf '%s' "$SIDECAR_MODE_ENV" | tr '[:upper:]' '[:lower:]')" = "pythonsidecar" ]; then
+        ENABLE_SIDECAR=true
+    fi
+fi
+
+if [ "$ENABLE_SIDECAR" = false ] && command -v python3 >/dev/null 2>&1 && [ -f "/opt/terrarium/appsettings.json" ]; then
     if python3 - <<'PY'
 import json
 from pathlib import Path
@@ -555,9 +570,9 @@ fi
 
 if [ "$ENABLE_SIDECAR" = true ] && systemctl list-unit-files | grep -q '^terrarium-hw-sidecar.service'; then
     systemctl enable terrarium-hw-sidecar
-    echo -e "${GREEN}Python sidecar service enabled (HardwareSidecar.Mode=PythonSidecar detected)${NC}"
+    echo -e "${GREEN}Python sidecar service enabled (HardwareSidecar mode detected as PythonSidecar)${NC}"
 else
-    echo "Python sidecar service installed but not enabled. Set HardwareSidecar.Mode=PythonSidecar to enable it on the next setup run."
+    echo "Python sidecar service installed but not enabled. Set HardwareSidecar__Mode=PythonSidecar in /etc/terrarium/terrarium.env (or HardwareSidecar.Mode in appsettings.json) and rerun setup.sh."
 fi
 
 # Create kiosk autostart script(s)
