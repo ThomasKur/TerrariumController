@@ -142,6 +142,13 @@ sudo usermod -a -G video terrarium
 sudo apt update
 sudo apt install -y libgpiod3 gpiod || sudo apt install -y libgpiod2 gpiod || sudo apt install -y libgpiod gpiod
 
+# If logs still say "Libgpiod driver not installed", verify sonames and add compatibility links
+ldconfig -p | grep libgpiod
+ARCH_LIB_DIR="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo aarch64-linux-gnu)"
+sudo ln -sf libgpiod.so.3 "$ARCH_LIB_DIR/libgpiod.so.2"
+sudo ln -sf libgpiod.so.3 "$ARCH_LIB_DIR/libgpiod.so.1"
+sudo ldconfig
+
 # Verify gpiochip devices are visible
 gpiodetect
 
