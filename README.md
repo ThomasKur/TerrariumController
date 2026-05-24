@@ -140,7 +140,7 @@ sudo usermod -a -G video terrarium
 
 # Install libgpiod runtime/tools (required for gpiochip driver, especially on Pi 5)
 sudo apt update
-sudo apt install -y libgpiod3 libgpiod2 libgpiod gpiod
+sudo apt install -y libgpiod3 gpiod || sudo apt install -y libgpiod2 gpiod || sudo apt install -y libgpiod gpiod
 
 # Verify gpiochip devices are visible
 gpiodetect

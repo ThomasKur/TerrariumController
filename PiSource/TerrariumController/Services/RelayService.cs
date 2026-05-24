@@ -147,7 +147,7 @@ namespace TerrariumController.Services
                     {
                         _logger.LogWarning(
                             ex,
-                            "libgpiod is not installed. Install it on Raspberry Pi OS with: sudo apt update && sudo apt install -y libgpiod3 libgpiod2 libgpiod gpiod");
+                            "libgpiod is not installed. Install it on Raspberry Pi OS with: sudo apt update && sudo apt install -y libgpiod3 gpiod || sudo apt install -y libgpiod2 gpiod || sudo apt install -y libgpiod gpiod");
                         break;
                     }
                     catch (Exception ex)
