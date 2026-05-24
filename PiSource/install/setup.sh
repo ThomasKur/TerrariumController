@@ -532,10 +532,32 @@ systemctl daemon-reload
 systemctl enable terrarium
 systemctl enable terrarium-camera
 
-# Sidecar unit is installed but not enabled by default.
-# Enable it when switching to HardwareSidecar.Mode=PythonSidecar.
-if systemctl list-unit-files | grep -q '^terrarium-hw-sidecar.service'; then
-    echo "Python sidecar service installed. To enable: sudo systemctl enable --now terrarium-hw-sidecar"
+ENABLE_SIDECAR=false
+if command -v python3 >/dev/null 2>&1 && [ -f "/opt/terrarium/appsettings.json" ]; then
+    if python3 - <<'PY'
+import json
+from pathlib import Path
+
+config_path = Path('/opt/terrarium/appsettings.json')
+try:
+    data = json.loads(config_path.read_text())
+except Exception:
+    raise SystemExit(1)
+
+hardware = data.get('HardwareSidecar', {})
+mode = str(hardware.get('Mode', '')).strip().lower()
+raise SystemExit(0 if mode == 'pythonsidecar' else 1)
+PY
+    then
+        ENABLE_SIDECAR=true
+    fi
+fi
+
+if [ "$ENABLE_SIDECAR" = true ] && systemctl list-unit-files | grep -q '^terrarium-hw-sidecar.service'; then
+    systemctl enable terrarium-hw-sidecar
+    echo -e "${GREEN}Python sidecar service enabled (HardwareSidecar.Mode=PythonSidecar detected)${NC}"
+else
+    echo "Python sidecar service installed but not enabled. Set HardwareSidecar.Mode=PythonSidecar to enable it on the next setup run."
 fi
 
 # Create kiosk autostart script(s)
