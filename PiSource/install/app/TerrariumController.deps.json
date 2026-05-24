@@ -9,10 +9,10 @@
     ".NETCoreApp,Version=v10.0/linux-arm64": {
       "TerrariumController/1.0.0": {
         "dependencies": {
-          "Iot.Device.Bindings": "4.0.1",
+          "Iot.Device.Bindings": "4.2.0",
           "Microsoft.EntityFrameworkCore": "10.0.0",
           "Microsoft.EntityFrameworkCore.Sqlite": "10.0.0",
-          "System.Device.Gpio": "4.0.1",
+          "System.Device.Gpio": "4.2.0",
           "runtimepack.Microsoft.NETCore.App.Runtime.linux-arm64": "10.0.8",
           "runtimepack.Microsoft.AspNetCore.App.Runtime.linux-arm64": "10.0.8"
         },
@@ -1327,18 +1327,18 @@
           }
         }
       },
-      "Iot.Device.Bindings/4.0.1": {
+      "Iot.Device.Bindings/4.2.0": {
         "dependencies": {
-          "System.Device.Gpio": "4.0.1",
+          "System.Device.Gpio": "4.2.0",
           "System.Drawing.Common": "8.0.8",
           "System.IO.Ports": "8.0.0",
-          "System.Management": "5.0.0",
-          "UnitsNet": "5.42.0"
+          "System.Management": "8.0.0",
+          "UnitsNet": "5.74.0"
         },
         "runtime": {
           "lib/net8.0/Iot.Device.Bindings.dll": {
-            "assemblyVersion": "4.0.1.0",
-            "fileVersion": "4.0.125.26603"
+            "assemblyVersion": "4.2.0.0",
+            "fileVersion": "4.200.26.16901"
           }
         }
       },
@@ -1479,11 +1479,11 @@
           }
         }
       },
-      "System.Device.Gpio/4.0.1": {
+      "System.Device.Gpio/4.2.0": {
         "runtime": {
           "lib/net8.0/System.Device.Gpio.dll": {
-            "assemblyVersion": "4.0.1.0",
-            "fileVersion": "4.0.125.26603"
+            "assemblyVersion": "4.2.0.0",
+            "fileVersion": "4.200.26.16901"
           }
         }
       },
@@ -1509,35 +1509,35 @@
           }
         }
       },
-      "System.Management/5.0.0": {
+      "System.Management/8.0.0": {
         "dependencies": {
           "System.CodeDom": "9.0.0"
         },
         "runtime": {
-          "lib/netstandard2.0/System.Management.dll": {
-            "assemblyVersion": "4.0.0.0",
-            "fileVersion": "5.0.20.51904"
+          "lib/net8.0/System.Management.dll": {
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.23.53103"
           }
         }
       },
-      "UnitsNet/5.42.0": {
+      "UnitsNet/5.74.0": {
         "runtime": {
-          "lib/net7.0/UnitsNet.dll": {
+          "lib/net9.0/UnitsNet.dll": {
             "assemblyVersion": "5.0.0.0",
             "fileVersion": "5.0.0.0"
           }
         },
         "resources": {
-          "lib/net7.0/fr-CA/UnitsNet.resources.dll": {
+          "lib/net9.0/fr-CA/UnitsNet.resources.dll": {
             "locale": "fr-CA"
           },
-          "lib/net7.0/nb-NO/UnitsNet.resources.dll": {
+          "lib/net9.0/nb-NO/UnitsNet.resources.dll": {
             "locale": "nb-NO"
           },
-          "lib/net7.0/ru-RU/UnitsNet.resources.dll": {
+          "lib/net9.0/ru-RU/UnitsNet.resources.dll": {
             "locale": "ru-RU"
           },
-          "lib/net7.0/zh-CN/UnitsNet.resources.dll": {
+          "lib/net9.0/zh-CN/UnitsNet.resources.dll": {
             "locale": "zh-CN"
           }
         }
@@ -1560,12 +1560,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "Iot.Device.Bindings/4.0.1": {
+    "Iot.Device.Bindings/4.2.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-WfiSNhGDwiOtRFU5MkJhlHL6BK7O69tIyGNU9eJXEST9D3hjNfpBrgi8p6tRP/OLHkQG77ZXVCccJ3LjAwjrdg==",
-      "path": "iot.device.bindings/4.0.1",
-      "hashPath": "iot.device.bindings.4.0.1.nupkg.sha512"
+      "sha512": "sha512-16bCYTDbagOIg+Qkn8YOQTuP8LoAiKXV44jeLsAk987bXD4vDsababYjnPD0VZjZQXkfsSiJM6+c5yNoRy7TPA==",
+      "path": "iot.device.bindings/4.2.0",
+      "hashPath": "iot.device.bindings.4.2.0.nupkg.sha512"
     },
     "Microsoft.Data.Sqlite.Core/10.0.0": {
       "type": "package",
@@ -1672,12 +1672,12 @@
       "path": "system.codedom/9.0.0",
       "hashPath": "system.codedom.9.0.0.nupkg.sha512"
     },
-    "System.Device.Gpio/4.0.1": {
+    "System.Device.Gpio/4.2.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-0kLetV4AsPCDC7pDnEs20fh/GJO8CITubSmVmiuRA5bIATUuYbo7YSYbw4daEaMOPvUX9zk65GcfHmMwGWWFBg==",
-      "path": "system.device.gpio/4.0.1",
-      "hashPath": "system.device.gpio.4.0.1.nupkg.sha512"
+      "sha512": "sha512-MbacJrE7B+aIIAKO6YFUB9RNHneaobwnw0DhVMGbjGsMN82i0+HYCfSRlkuEbsD4HlzTcIlqIFYfkph3xFq2sQ==",
+      "path": "system.device.gpio/4.2.0",
+      "hashPath": "system.device.gpio.4.2.0.nupkg.sha512"
     },
     "System.Drawing.Common/8.0.8": {
       "type": "package",
@@ -1693,19 +1693,19 @@
       "path": "system.io.ports/8.0.0",
       "hashPath": "system.io.ports.8.0.0.nupkg.sha512"
     },
-    "System.Management/5.0.0": {
+    "System.Management/8.0.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-MF1CHaRcC+MLFdnDthv4/bKWBZnlnSpkGqa87pKukQefgEdwtb9zFW6zs0GjPp73qtpYYg4q6PEKbzJbxCpKfw==",
-      "path": "system.management/5.0.0",
-      "hashPath": "system.management.5.0.0.nupkg.sha512"
+      "sha512": "sha512-jrK22i5LRzxZCfGb+tGmke2VH7oE0DvcDlJ1HAKYU8cPmD8XnpUT0bYn2Gy98GEhGjtfbR/sxKTVb+dE770pfA==",
+      "path": "system.management/8.0.0",
+      "hashPath": "system.management.8.0.0.nupkg.sha512"
     },
-    "UnitsNet/5.42.0": {
+    "UnitsNet/5.74.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-WCkkHsInoq531Q9yagXtfMbtceoAZzufp370iHA8aPnlnlV5E4AMn7hSFxZGGgNGhQBxmNJqJ4tBo0fm4G1TgA==",
-      "path": "unitsnet/5.42.0",
-      "hashPath": "unitsnet.5.42.0.nupkg.sha512"
+      "sha512": "sha512-aj5klH43LvitOz0lC+6MnVy+uj6DR8shwnzIGsmtRAhHJN6XxtC4mdn+MbkOlZ20dGgGKrIwh4LBQMAf7SL9uA==",
+      "path": "unitsnet/5.74.0",
+      "hashPath": "unitsnet.5.74.0.nupkg.sha512"
     }
   },
   "runtimes": {
