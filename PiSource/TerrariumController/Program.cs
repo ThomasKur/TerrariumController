@@ -3,6 +3,7 @@ using TerrariumController.Data;
 using TerrariumController.Services;
 using TerrariumController.Hubs;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +22,17 @@ builder.Services.AddScoped<ILoggingService, LoggingService>();
 builder.Services.AddScoped<ISensorService, SensorService>();
 builder.Services.AddScoped<IRelayService, RelayService>();
 builder.Services.AddScoped<IHumidityService, HumidityService>();
+builder.Services.Configure<HardwareSidecarOptions>(builder.Configuration.GetSection(HardwareSidecarOptions.SectionName));
+builder.Services.AddHttpClient<IHardwareSidecarClient, HardwareSidecarClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<IOptions<HardwareSidecarOptions>>().Value;
+    if (Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var baseUri))
+    {
+        client.BaseAddress = baseUri;
+    }
+
+    client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+});
 builder.Services.AddSingleton<IControlLoopSignal, ControlLoopSignal>();
 builder.Services.AddSingleton<IControlDiagnosticsService, ControlDiagnosticsService>();
 builder.Services.AddSingleton<IRuntimeHealthService, RuntimeHealthService>();

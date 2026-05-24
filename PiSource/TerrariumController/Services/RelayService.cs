@@ -3,6 +3,7 @@ using TerrariumController.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
+using Microsoft.Extensions.Options;
 
 namespace TerrariumController.Services
 {
@@ -22,6 +23,8 @@ namespace TerrariumController.Services
         private readonly ILogger<RelayService> _logger;
         private readonly ISettingsService _settingsService;
         private readonly ILoggingService _loggingService;
+        private readonly IHardwareSidecarClient _hardwareSidecarClient;
+        private readonly HardwareSidecarOptions _hardwareSidecarOptions;
         private readonly Dictionary<int, bool> _relayStates = new();
         private readonly Dictionary<int, double?> _lastTemperatures = new();
         private static GpioController? _gpioController;
@@ -30,12 +33,16 @@ namespace TerrariumController.Services
         private Dictionary<int, int> _relayBoardPins = new();
 
         public RelayService(AppDbContext context, ILogger<RelayService> logger,
-            ISettingsService settingsService, ILoggingService loggingService)
+            ISettingsService settingsService, ILoggingService loggingService,
+            IHardwareSidecarClient hardwareSidecarClient,
+            IOptions<HardwareSidecarOptions> hardwareSidecarOptions)
         {
             _context = context;
             _logger = logger;
             _settingsService = settingsService;
             _loggingService = loggingService;
+            _hardwareSidecarClient = hardwareSidecarClient;
+            _hardwareSidecarOptions = hardwareSidecarOptions.Value;
 
             // Initialize relay states
             for (int i = 1; i <= 6; i++)
@@ -89,6 +96,23 @@ namespace TerrariumController.Services
                 }
 
                 int? configuredLinuxChipId = settings.LinuxGpioChip >= 0 ? settings.LinuxGpioChip : null;
+
+                if (_hardwareSidecarOptions.UsePythonSidecar)
+                {
+                    var healthy = await _hardwareSidecarClient.IsHealthyAsync();
+                    if (!healthy)
+                    {
+                        _logger.LogWarning("Python hardware sidecar is not reachable. Relay commands may fail until sidecar becomes available.");
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Using Python hardware sidecar mode for relay GPIO control");
+                    }
+
+                    _gpioController = null;
+                    _configuredLinuxGpioChipId = configuredLinuxChipId;
+                    return;
+                }
 
                 if (_gpioController == null || _configuredLinuxGpioChipId != configuredLinuxChipId)
                 {
@@ -298,8 +322,22 @@ namespace TerrariumController.Services
 
                 var gpioWriteSucceeded = true;
 
-                // Control GPIO pin if available
-                if (_gpioController != null && _relayGpioPins.TryGetValue(relayId, out int gpioPin))
+                if (_hardwareSidecarOptions.UsePythonSidecar)
+                {
+                    if (!_relayGpioPins.TryGetValue(relayId, out int sidecarGpioPin))
+                    {
+                        _logger.LogError("No GPIO mapping found for relay {RelayId} in sidecar mode", relayId);
+                        return;
+                    }
+
+                    gpioWriteSucceeded = await _hardwareSidecarClient.SetRelayStateAsync(relayId, sidecarGpioPin, state);
+                    if (!gpioWriteSucceeded)
+                    {
+                        _logger.LogError("Aborting state persistence because sidecar relay write failed for relay {RelayId}", relayId);
+                        return;
+                    }
+                }
+                else if (_gpioController != null && _relayGpioPins.TryGetValue(relayId, out int gpioPin))
                 {
                     gpioWriteSucceeded = await TryWriteRelayGpioWithRetryAsync(relayId, gpioPin, state);
                     if (!gpioWriteSucceeded)

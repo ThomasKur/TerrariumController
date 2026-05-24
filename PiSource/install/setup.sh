@@ -140,10 +140,13 @@ echo "Creating terrarium user and directories..."
 useradd -m -s /bin/bash terrarium || true
 mkdir -p /opt/terrarium
 mkdir -p /opt/terrarium/logs
+mkdir -p /opt/terrarium-hw-sidecar
 chown terrarium:terrarium /opt/terrarium
 chown terrarium:terrarium /opt/terrarium/logs
+chown terrarium:terrarium /opt/terrarium-hw-sidecar
 chmod 755 /opt/terrarium
 chmod 2775 /opt/terrarium/logs
+chmod 755 /opt/terrarium-hw-sidecar
 
 echo "Creating service environment file..."
 mkdir -p /etc/terrarium
@@ -457,6 +460,21 @@ if ! apt install -y python3-gpiozero python3-rpi.gpio; then
     echo -e "${YELLOW}Warning: Python GPIO bindings not available (optional)${NC}"
 fi
 
+# Python sidecar prerequisites (optional, only needed when HardwareSidecar.Mode=PythonSidecar).
+if ! apt install -y python3-venv python3-pip; then
+    echo -e "${YELLOW}Warning: python3-venv/python3-pip installation failed; sidecar mode may not work${NC}"
+fi
+
+echo "Deploying Python hardware sidecar files..."
+if [ -d "$SCRIPT_DIR/hw-sidecar" ]; then
+    cp -R "$SCRIPT_DIR/hw-sidecar"/* /opt/terrarium-hw-sidecar/
+    chown -R terrarium:terrarium /opt/terrarium-hw-sidecar
+    chmod +x /opt/terrarium-hw-sidecar/run-sidecar.sh 2>/dev/null || true
+    echo -e "${GREEN}Python hardware sidecar files deployed to /opt/terrarium-hw-sidecar${NC}"
+else
+    echo -e "${YELLOW}Warning: $SCRIPT_DIR/hw-sidecar not found; sidecar mode files were not deployed${NC}"
+fi
+
 # Install camera streaming tools
 echo "Installing Pi camera streaming tools..."
 # Install rpicam-apps (python3 is pre-installed on Raspberry Pi OS)
@@ -504,9 +522,21 @@ if [ ! -f "$SCRIPT_DIR/terrarium-camera.service" ]; then
 fi
 cp "$SCRIPT_DIR/terrarium-camera.service" /etc/systemd/system/
 
+if [ -f "$SCRIPT_DIR/terrarium-hw-sidecar.service" ]; then
+    cp "$SCRIPT_DIR/terrarium-hw-sidecar.service" /etc/systemd/system/
+else
+    echo -e "${YELLOW}Warning: terrarium-hw-sidecar.service not found in $SCRIPT_DIR${NC}"
+fi
+
 systemctl daemon-reload
 systemctl enable terrarium
 systemctl enable terrarium-camera
+
+# Sidecar unit is installed but not enabled by default.
+# Enable it when switching to HardwareSidecar.Mode=PythonSidecar.
+if systemctl list-unit-files | grep -q '^terrarium-hw-sidecar.service'; then
+    echo "Python sidecar service installed. To enable: sudo systemctl enable --now terrarium-hw-sidecar"
+fi
 
 # Create kiosk autostart script(s)
 echo "Creating Chromium kiosk launcher..."

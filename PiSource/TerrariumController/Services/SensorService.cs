@@ -5,6 +5,7 @@ using System.Device.Gpio;
 using System.Device.Gpio.Drivers;
 using Iot.Device.DHTxx;
 using UnitsNet;
+using Microsoft.Extensions.Options;
 
 namespace TerrariumController.Services
 {
@@ -20,6 +21,8 @@ namespace TerrariumController.Services
         private readonly AppDbContext _context;
         private readonly ILogger<SensorService> _logger;
         private readonly ISettingsService _settingsService;
+        private readonly IHardwareSidecarClient _hardwareSidecarClient;
+        private readonly HardwareSidecarOptions _hardwareSidecarOptions;
 
         // Last successful readings for fallback
         private static readonly Dictionary<int, SensorReading> LastValidReadings = new();
@@ -44,11 +47,15 @@ namespace TerrariumController.Services
         public SensorService(
             AppDbContext context,
             ILogger<SensorService> logger,
-            ISettingsService settingsService)
+            ISettingsService settingsService,
+            IHardwareSidecarClient hardwareSidecarClient,
+            IOptions<HardwareSidecarOptions> hardwareSidecarOptions)
         {
             _context = context;
             _logger = logger;
             _settingsService = settingsService;
+            _hardwareSidecarClient = hardwareSidecarClient;
+            _hardwareSidecarOptions = hardwareSidecarOptions.Value;
         }
 
         public async Task<SensorReading?> ReadSensorAsync(int sensorId)
@@ -65,6 +72,35 @@ namespace TerrariumController.Services
                 {
                     _logger.LogWarning("Sensor {SensorId} not configured in GPIO map", sensorId);
                     return null;
+                }
+
+                if (_hardwareSidecarOptions.UsePythonSidecar)
+                {
+                    var sidecarResponse = await _hardwareSidecarClient.ReadSensorAsync(sensorId, gpioPin);
+                    if (sidecarResponse?.Success == true
+                        && sidecarResponse.TemperatureC.HasValue
+                        && sidecarResponse.HumidityPercent.HasValue)
+                    {
+                        var sidecarReading = new SensorReading
+                        {
+                            SensorId = sensorId,
+                            Timestamp = DateTime.UtcNow,
+                            Temperature = sidecarResponse.TemperatureC,
+                            Humidity = sidecarResponse.HumidityPercent,
+                            IsValid = true,
+                            Label = GetSensorLabel(sensorId)
+                        };
+
+                        LastValidReadings[sensorId] = sidecarReading;
+                        await StoreSensorReadingAsync(sidecarReading);
+                        return sidecarReading;
+                    }
+
+                    _logger.LogWarning(
+                        "Python sidecar sensor read failed for Sensor {SensorId} on BCM GPIO {GpioPin}: {Error}",
+                        sensorId,
+                        gpioPin,
+                        sidecarResponse?.Error ?? "no response");
                 }
 
                 // Try to read the DHT22 sensor

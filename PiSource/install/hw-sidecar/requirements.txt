@@ -1,0 +1,5 @@
+fastapi==0.116.1
+uvicorn[standard]==0.32.1
+gpiod==2.3.0
+adafruit-blinka==8.52.0
+adafruit-circuitpython-dht==4.0.9
