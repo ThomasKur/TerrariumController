@@ -177,7 +177,7 @@ if [ ! -f "$ENV_FILE" ]; then
 # Terrarium Controller environment configuration
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ASPNETCORE_ENVIRONMENT=Production
-HardwareSidecar__Mode=Embedded
+HardwareSidecar__Mode=PythonSidecar
 CAMERA_WIDTH=1920
 CAMERA_HEIGHT=1080
 CAMERA_FPS=15
@@ -194,8 +194,8 @@ if ! grep -q '^CAMERA_STREAM_PORT=' "$ENV_FILE"; then
 fi
 
 if ! grep -q '^HardwareSidecar__Mode=' "$ENV_FILE"; then
-    echo 'HardwareSidecar__Mode=Embedded' >> "$ENV_FILE"
-    echo "Added HardwareSidecar__Mode=Embedded to $ENV_FILE"
+    echo 'HardwareSidecar__Mode=PythonSidecar' >> "$ENV_FILE"
+    echo "Added HardwareSidecar__Mode=PythonSidecar to $ENV_FILE"
 fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
