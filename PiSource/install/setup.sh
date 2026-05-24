@@ -407,25 +407,50 @@ chmod +x /opt/terrarium/camera.sh
 
 # Install GPIO dependencies
 echo "Installing GPIO dependencies..."
-# Install both runtime libraries and userspace tools (required on Raspberry Pi 5)
-if ! apt install -y libgpiod2 libgpiod-dev gpiod; then
-    echo -e "${RED}Error: failed to install libgpiod/gpiod packages${NC}"
-    exit 1
+# Package names differ by distro/release (for example libgpiod2 vs libgpiod3).
+RUNTIME_GPIO_PKG=""
+for pkg in libgpiod3 libgpiod2 libgpiod; do
+    if apt-cache show "$pkg" >/dev/null 2>&1; then
+        RUNTIME_GPIO_PKG="$pkg"
+        break
+    fi
+done
+
+if [ -n "$RUNTIME_GPIO_PKG" ]; then
+    if apt install -y "$RUNTIME_GPIO_PKG"; then
+        echo -e "${GREEN}Installed GPIO runtime package: $RUNTIME_GPIO_PKG${NC}"
+    else
+        echo -e "${YELLOW}Warning: failed to install GPIO runtime package $RUNTIME_GPIO_PKG${NC}"
+    fi
+else
+    echo -e "${YELLOW}Warning: no libgpiod runtime package found in repositories (trying fallback GPIO driver at runtime)${NC}"
 fi
 
-if dpkg -s libgpiod2 >/dev/null 2>&1 && dpkg -s libgpiod-dev >/dev/null 2>&1 && dpkg -s gpiod >/dev/null 2>&1; then
-    echo -e "${GREEN}Verified libgpiod2, libgpiod-dev, and gpiod are installed${NC}"
+# Optional: headers for native builds/debugging.
+if apt-cache show libgpiod-dev >/dev/null 2>&1; then
+    if apt install -y libgpiod-dev; then
+        echo -e "${GREEN}Installed optional package: libgpiod-dev${NC}"
+    else
+        echo -e "${YELLOW}Warning: failed to install optional package libgpiod-dev${NC}"
+    fi
+fi
+
+# Userspace GPIO tools (includes gpiodetect on most distros).
+if apt-cache show gpiod >/dev/null 2>&1; then
+    if apt install -y gpiod; then
+        echo -e "${GREEN}Installed GPIO tools package: gpiod${NC}"
+    else
+        echo -e "${YELLOW}Warning: failed to install gpiod tools${NC}"
+    fi
 else
-    echo -e "${RED}Error: required GPIO packages are missing after install${NC}"
-    exit 1
+    echo -e "${YELLOW}Warning: gpiod tools package not available in repositories${NC}"
 fi
 
 if command -v gpiodetect >/dev/null 2>&1; then
     echo "Detected GPIO chips:"
     gpiodetect || true
 else
-    echo -e "${RED}Error: gpiodetect command not found after install${NC}"
-    exit 1
+    echo -e "${YELLOW}Warning: gpiodetect command not found. .NET GPIO may still work via fallback driver.${NC}"
 fi
 
 if ! apt install -y python3-gpiozero python3-rpi.gpio; then
