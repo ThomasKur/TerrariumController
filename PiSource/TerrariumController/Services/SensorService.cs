@@ -262,7 +262,9 @@ namespace TerrariumController.Services
                     }
                 }
 
-                _logger.LogWarning("No usable libgpiod gpiochip device found for sensors; falling back to default GPIO driver");
+                var message = "No usable libgpiod gpiochip device found for sensors. DHT22 requires libgpiod on Linux and will not use SysFs/default fallback.";
+                _logger.LogError(message);
+                throw new PlatformNotSupportedException(message);
             }
 
             SensorGpioController = new GpioController();
