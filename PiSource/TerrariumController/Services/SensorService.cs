@@ -2,6 +2,7 @@ using TerrariumController.Data;
 using TerrariumController.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Device.Gpio;
+using System.Device.Gpio.Drivers;
 using Iot.Device.DHTxx;
 using UnitsNet;
 
@@ -24,6 +25,7 @@ namespace TerrariumController.Services
         private static readonly Dictionary<int, SensorReading> LastValidReadings = new();
         private static readonly Dictionary<int, SensorRuntime> SensorRuntimes = new();
         private static readonly object SensorRuntimeSync = new();
+        private static GpioController? SensorGpioController;
 
         private sealed class SensorRuntime
         {
@@ -31,10 +33,10 @@ namespace TerrariumController.Services
             public Dht22 Sensor { get; }
             public SemaphoreSlim ReadLock { get; } = new(1, 1);
 
-            public SensorRuntime(int gpioPin)
+            public SensorRuntime(int gpioPin, GpioController gpioController)
             {
                 GpioPin = gpioPin;
-                Sensor = new Dht22(gpioPin, PinNumberingScheme.Logical);
+                Sensor = new Dht22(gpioPin, gpioController);
             }
         }
 
@@ -182,10 +184,41 @@ namespace TerrariumController.Services
                     _logger.LogInformation("Recreating DHT22 runtime for Sensor {SensorId} after GPIO change to BCM {GpioPin}", sensorId, gpioPin);
                 }
 
-                var created = new SensorRuntime(gpioPin);
+                var created = new SensorRuntime(gpioPin, GetOrCreateSensorGpioController());
                 SensorRuntimes[sensorId] = created;
                 return created;
             }
+        }
+
+        private GpioController GetOrCreateSensorGpioController()
+        {
+            if (SensorGpioController != null)
+            {
+                return SensorGpioController;
+            }
+
+            if (OperatingSystem.IsLinux())
+            {
+                try
+                {
+                    const string gpioChipPath = "/dev/gpiochip0";
+                    if (File.Exists(gpioChipPath))
+                    {
+                        _logger.LogInformation("Using libgpiod GPIO driver for DHT22 sensors on {GpioChipPath}", gpioChipPath);
+                        SensorGpioController = new GpioController(new LibGpiodDriver(0));
+                        return SensorGpioController;
+                    }
+
+                    _logger.LogWarning("{GpioChipPath} not found; falling back to default GPIO driver for sensors", gpioChipPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create libgpiod sensor GPIO driver; falling back to default GPIO driver");
+                }
+            }
+
+            SensorGpioController = new GpioController();
+            return SensorGpioController;
         }
 
         // Legacy manual bit-banging implementation removed in favor of Iot.Device.DHTxx
@@ -202,15 +235,62 @@ namespace TerrariumController.Services
             return map;
         }
 
-        private void AddConfiguredSensor(IDictionary<int, int> map, int sensorId, int gpioPin)
+        private void AddConfiguredSensor(IDictionary<int, int> map, int sensorId, int boardPin)
         {
-            if (gpioPin <= 0)
+            if (boardPin <= 0)
             {
-                _logger.LogWarning("Sensor {SensorId} GPIO pin not configured", sensorId);
+                _logger.LogWarning("Sensor {SensorId} BOARD pin not configured", sensorId);
                 return;
             }
 
-            map[sensorId] = gpioPin;
+            if (!TryConvertBoardPinToBcm(boardPin, out var bcmPin))
+            {
+                _logger.LogError(
+                    "Sensor {SensorId} uses unsupported BOARD pin {BoardPin}; skipping sensor",
+                    sensorId,
+                    boardPin);
+                return;
+            }
+
+            map[sensorId] = bcmPin;
+        }
+
+        private static bool TryConvertBoardPinToBcm(int boardPin, out int bcmPin)
+        {
+            bcmPin = boardPin switch
+            {
+                3 => 2,
+                5 => 3,
+                7 => 4,
+                8 => 14,
+                10 => 15,
+                11 => 17,
+                12 => 18,
+                13 => 27,
+                15 => 22,
+                16 => 23,
+                18 => 24,
+                19 => 10,
+                21 => 9,
+                22 => 25,
+                23 => 11,
+                24 => 8,
+                26 => 7,
+                27 => 0,
+                28 => 1,
+                29 => 5,
+                31 => 6,
+                32 => 12,
+                33 => 13,
+                35 => 19,
+                36 => 16,
+                37 => 26,
+                38 => 20,
+                40 => 21,
+                _ => -1
+            };
+
+            return bcmPin >= 0;
         }
 
         public async Task<List<SensorReading>> GetLatestReadingsAsync()

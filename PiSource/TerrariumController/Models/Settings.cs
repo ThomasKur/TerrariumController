@@ -30,10 +30,10 @@ namespace TerrariumController.Models
         public int Relay5GPIO { get; set; } = 37;
         public int Relay6GPIO { get; set; } = 40;
 
-        // Sensor GPIO Configuration (BCM numbering)
-        public int Sensor1GPIO { get; set; } = 23;
-        public int Sensor2GPIO { get; set; } = 22;
-        public int Sensor3GPIO { get; set; } = 25;
+        // Sensor GPIO Configuration (BOARD numbering)
+        public int Sensor1GPIO { get; set; } = 16;
+        public int Sensor2GPIO { get; set; } = 15;
+        public int Sensor3GPIO { get; set; } = 22;
 
         // Camera settings
         public int CameraWidth { get; set; } = 1280;

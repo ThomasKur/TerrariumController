@@ -2,6 +2,7 @@ using TerrariumController.Data;
 using TerrariumController.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Device.Gpio;
+using System.Device.Gpio.Drivers;
 
 namespace TerrariumController.Services
 {
@@ -25,6 +26,7 @@ namespace TerrariumController.Services
         private readonly Dictionary<int, double?> _lastTemperatures = new();
         private static GpioController? _gpioController;
         private Dictionary<int, int> _relayGpioPins = new();
+        private Dictionary<int, int> _relayBoardPins = new();
 
         public RelayService(AppDbContext context, ILogger<RelayService> logger,
             ISettingsService settingsService, ILoggingService loggingService)
@@ -49,7 +51,7 @@ namespace TerrariumController.Services
                 var settings = await _settingsService.GetSettingsAsync();
 
                 // Map relay IDs to GPIO pins from settings
-                _relayGpioPins = new Dictionary<int, int>
+                _relayBoardPins = new Dictionary<int, int>
                 {
                     { 1, settings.Relay1GPIO },
                     { 2, settings.Relay2GPIO },
@@ -59,10 +61,26 @@ namespace TerrariumController.Services
                     { 6, settings.Relay6GPIO }
                 };
 
+                _relayGpioPins = new Dictionary<int, int>();
+                foreach (var (relayId, boardPin) in _relayBoardPins)
+                {
+                    if (TryConvertBoardPinToBcm(boardPin, out var bcmPin))
+                    {
+                        _relayGpioPins[relayId] = bcmPin;
+                    }
+                    else
+                    {
+                        _logger.LogError(
+                            "Relay {RelayId} uses unsupported BOARD pin {BoardPin}; skipping GPIO initialization",
+                            relayId,
+                            boardPin);
+                    }
+                }
+
                 if (_gpioController == null)
                 {
                     // Relay GPIO values in Settings are BOARD pin numbers.
-                    _gpioController = new GpioController(PinNumberingScheme.Board);
+                    _gpioController = CreateGpioController();
                 }
 
                 // Initialize all relay pins as outputs (inactive/low)
@@ -74,12 +92,21 @@ namespace TerrariumController.Services
                         {
                             _gpioController.OpenPin(gpioPin, PinMode.Output);
                             _gpioController.Write(gpioPin, PinValue.Low); // Relay off
-                            _logger.LogInformation("Initialized GPIO pin {GpioPin} for Relay {RelayId}", gpioPin, relayId);
+                            _logger.LogInformation(
+                                "Initialized BCM GPIO pin {GpioPin} (BOARD {BoardPin}) for Relay {RelayId}",
+                                gpioPin,
+                                _relayBoardPins.GetValueOrDefault(relayId),
+                                relayId);
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to initialize GPIO pin {GpioPin} for Relay {RelayId}", gpioPin, relayId);
+                        _logger.LogError(
+                            ex,
+                            "Failed to initialize BCM GPIO pin {GpioPin} (BOARD {BoardPin}) for Relay {RelayId}",
+                            gpioPin,
+                            _relayBoardPins.GetValueOrDefault(relayId),
+                            relayId);
                     }
                 }
 
@@ -89,6 +116,69 @@ namespace TerrariumController.Services
             {
                 _logger.LogError(ex, "Error initializing GPIO controller for relays");
             }
+        }
+
+        private GpioController CreateGpioController()
+        {
+            if (OperatingSystem.IsLinux())
+            {
+                try
+                {
+                    const string gpioChipPath = "/dev/gpiochip0";
+                    if (File.Exists(gpioChipPath))
+                    {
+                        _logger.LogInformation("Using libgpiod GPIO driver on {GpioChipPath}", gpioChipPath);
+                        return new GpioController(new LibGpiodDriver(0));
+                    }
+
+                    _logger.LogWarning("{GpioChipPath} not found; falling back to default GPIO driver", gpioChipPath);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create libgpiod GPIO driver; falling back to default GPIO driver");
+                }
+            }
+
+            _logger.LogInformation("Using default GPIO driver");
+            return new GpioController();
+        }
+
+        private static bool TryConvertBoardPinToBcm(int boardPin, out int bcmPin)
+        {
+            bcmPin = boardPin switch
+            {
+                3 => 2,
+                5 => 3,
+                7 => 4,
+                8 => 14,
+                10 => 15,
+                11 => 17,
+                12 => 18,
+                13 => 27,
+                15 => 22,
+                16 => 23,
+                18 => 24,
+                19 => 10,
+                21 => 9,
+                22 => 25,
+                23 => 11,
+                24 => 8,
+                26 => 7,
+                27 => 0,
+                28 => 1,
+                29 => 5,
+                31 => 6,
+                32 => 12,
+                33 => 13,
+                35 => 19,
+                36 => 16,
+                37 => 26,
+                38 => 20,
+                40 => 21,
+                _ => -1
+            };
+
+            return bcmPin >= 0;
         }
 
         public async Task CleanupGpioAsync()

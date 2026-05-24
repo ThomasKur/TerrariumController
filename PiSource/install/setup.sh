@@ -407,11 +407,27 @@ chmod +x /opt/terrarium/camera.sh
 
 # Install GPIO dependencies
 echo "Installing GPIO dependencies..."
-# Try multiple GPIO library options for compatibility
-if ! apt install -y libgpiod-dev; then
-    echo -e "${YELLOW}Warning: libgpiod-dev installation failed, trying gpiod...${NC}"
-    apt install -y gpiod || echo -e "${YELLOW}GPIO libraries may need manual installation${NC}"
+# Install both runtime libraries and userspace tools (required on Raspberry Pi 5)
+if ! apt install -y libgpiod2 libgpiod-dev gpiod; then
+    echo -e "${RED}Error: failed to install libgpiod/gpiod packages${NC}"
+    exit 1
 fi
+
+if dpkg -s libgpiod2 >/dev/null 2>&1 && dpkg -s libgpiod-dev >/dev/null 2>&1 && dpkg -s gpiod >/dev/null 2>&1; then
+    echo -e "${GREEN}Verified libgpiod2, libgpiod-dev, and gpiod are installed${NC}"
+else
+    echo -e "${RED}Error: required GPIO packages are missing after install${NC}"
+    exit 1
+fi
+
+if command -v gpiodetect >/dev/null 2>&1; then
+    echo "Detected GPIO chips:"
+    gpiodetect || true
+else
+    echo -e "${RED}Error: gpiodetect command not found after install${NC}"
+    exit 1
+fi
+
 if ! apt install -y python3-gpiozero python3-rpi.gpio; then
     echo -e "${YELLOW}Warning: Python GPIO bindings not available (optional)${NC}"
 fi

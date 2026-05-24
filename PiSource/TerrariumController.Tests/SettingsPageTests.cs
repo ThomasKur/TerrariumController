@@ -24,9 +24,9 @@ public class SettingsPageTests
             Relay4GPIO = 35,
             Relay5GPIO = 37,
             Relay6GPIO = 40,
-            Sensor1GPIO = 23,
-            Sensor2GPIO = 22,
-            Sensor3GPIO = 25,
+            Sensor1GPIO = 16,
+            Sensor2GPIO = 15,
+            Sensor3GPIO = 22,
             Relay4OnTime = "08:00",
             Relay4OffTime = "20:00"
         });
