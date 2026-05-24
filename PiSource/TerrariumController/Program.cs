@@ -84,6 +84,14 @@ app.MapGet("/api/diagnostics/control", (IControlDiagnosticsService diagnostics) 
     return Results.Ok(diagnostics.GetSnapshot());
 });
 
+app.MapPost("/api/kiosk/exit", () =>
+{
+    var exitRequestPath = Path.Combine(Path.GetTempPath(), "terrarium-kiosk.exit");
+    File.WriteAllText(exitRequestPath, DateTime.UtcNow.ToString("O"));
+
+    return Results.NoContent();
+});
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

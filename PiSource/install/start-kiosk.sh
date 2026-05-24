@@ -12,6 +12,7 @@ resolve_default_log_file() {
 }
 
 LOG_FILE="${KIOSK_LOG_FILE:-$(resolve_default_log_file)}"
+EXIT_FLAG_FILE="${KIOSK_EXIT_FILE:-/tmp/terrarium-kiosk.exit}"
 
 if ! mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null; then
     LOG_FILE="/tmp/terrarium-kiosk.log"
@@ -30,6 +31,8 @@ fi
 echo "[$(date -Is)] start-kiosk.sh invoked (url=$URL wait=${WAIT_SECONDS}s display=${DISPLAY:-unset})" >> "$LOG_FILE"
 echo "[$(date -Is)] user=$(id -un) uid=$(id -u) home=${HOME:-unset} xdg_runtime=${XDG_RUNTIME_DIR:-unset}" >> "$LOG_FILE"
 echo "[$(date -Is)] script_dir=$SCRIPT_DIR log_file=$LOG_FILE pwd=$(pwd)" >> "$LOG_FILE"
+
+rm -f "$EXIT_FLAG_FILE" 2>/dev/null || true
 
 if [ ! -x "$SCRIPT_DIR/kiosk.sh" ]; then
     echo "[$(date -Is)] ERROR: kiosk launcher not executable or missing at $SCRIPT_DIR/kiosk.sh" >> "$LOG_FILE"
@@ -67,5 +70,32 @@ if ! is_url_ready "$URL"; then
     echo "[$(date -Is)] URL not reachable before kiosk launch: $URL" >> "$LOG_FILE"
 fi
 
+cleanup() {
+    if [ -n "${BROWSER_PID:-}" ] && kill -0 "$BROWSER_PID" 2>/dev/null; then
+        echo "[$(date -Is)] stopping kiosk browser pid=$BROWSER_PID" >> "$LOG_FILE"
+        kill "$BROWSER_PID" 2>/dev/null || true
+        sleep 1
+        kill -9 "$BROWSER_PID" 2>/dev/null || true
+    fi
+}
+
+trap cleanup EXIT INT TERM HUP
+
 echo "[$(date -Is)] launching kiosk.sh" >> "$LOG_FILE"
-exec "$SCRIPT_DIR/kiosk.sh" "$URL" >> "$LOG_FILE" 2>&1
+"$SCRIPT_DIR/kiosk.sh" "$URL" >> "$LOG_FILE" 2>&1 &
+BROWSER_PID=$!
+echo "[$(date -Is)] kiosk browser started pid=$BROWSER_PID" >> "$LOG_FILE"
+
+while kill -0 "$BROWSER_PID" 2>/dev/null; do
+    if [ -f "$EXIT_FLAG_FILE" ]; then
+        echo "[$(date -Is)] exit request detected; terminating kiosk browser" >> "$LOG_FILE"
+        rm -f "$EXIT_FLAG_FILE" 2>/dev/null || true
+        cleanup
+        break
+    fi
+
+    sleep 1
+done
+
+wait "$BROWSER_PID" 2>/dev/null || true
+echo "[$(date -Is)] kiosk browser session ended" >> "$LOG_FILE"
