@@ -69,6 +69,16 @@ namespace TerrariumController.Services
                     {
                         _relayGpioPins[relayId] = bcmPin;
                     }
+                    else if (boardPin >= 0 && boardPin <= 27)
+                    {
+                        // Backward compatibility: some installations stored BCM values in settings.
+                        _relayGpioPins[relayId] = boardPin;
+                        _logger.LogWarning(
+                            "Relay {RelayId} configured with value {ConfiguredPin}. Treating it as BCM GPIO {GpioPin} (expected BOARD numbering in settings).",
+                            relayId,
+                            boardPin,
+                            boardPin);
+                    }
                     else
                     {
                         _logger.LogError(
@@ -163,7 +173,20 @@ namespace TerrariumController.Services
                     }
                 }
 
-                _logger.LogWarning("No usable libgpiod gpiochip device found; falling back to default GPIO driver");
+                _logger.LogWarning("No usable libgpiod gpiochip device found; trying SysFs GPIO fallback for relays");
+
+                try
+                {
+                    if (Directory.Exists("/sys/class/gpio"))
+                    {
+                        _logger.LogInformation("Using SysFs GPIO fallback driver for relays");
+                        return new GpioController(new SysFsDriver());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create SysFs GPIO fallback driver for relays");
+                }
             }
 
             _logger.LogInformation("Using default GPIO driver");
