@@ -242,6 +242,13 @@ namespace TerrariumController.Services
                         _logger.LogInformation("Using libgpiod GPIO driver for DHT22 sensors on {GpioChipPath}", gpioChipPath);
                         return SensorGpioController;
                     }
+                    catch (PlatformNotSupportedException ex)
+                    {
+                        _logger.LogWarning(
+                            ex,
+                            "libgpiod is not installed. Install it on Raspberry Pi OS with: sudo apt update && sudo apt install -y libgpiod3 libgpiod2 libgpiod gpiod");
+                        break;
+                    }
                     catch (Exception ex)
                     {
                         _logger.LogWarning(ex, "Failed to create libgpiod sensor GPIO driver on {GpioChipPath}", gpioChipPath);

@@ -137,6 +137,14 @@ All settings are stored in SQLite and managed via the web UI:
 # Add user to dialout and video groups
 sudo usermod -a -G dialout terrarium
 sudo usermod -a -G video terrarium
+
+# Install libgpiod runtime/tools (required for gpiochip driver, especially on Pi 5)
+sudo apt update
+sudo apt install -y libgpiod3 libgpiod2 libgpiod gpiod
+
+# Verify gpiochip devices are visible
+gpiodetect
+
 # Restart the service
 sudo systemctl restart terrarium
 ```
