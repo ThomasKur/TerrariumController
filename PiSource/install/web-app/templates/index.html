@@ -25,14 +25,24 @@
     a { color: #1259a7; text-decoration: none; }
     a:hover { text-decoration: underline; }
     iframe { width: 100%; height: 240px; border: 1px solid var(--line); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #e4e9f0; padding: 6px; font-size: 0.9rem; text-align: left; }
+    .btn { border: 1px solid #0f766e; background: #10b981; color: #fff; border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+    .btn.off { background: #ef4444; border-color: #b91c1c; }
+    .msg { margin-top: 8px; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       <h1>Terrarium Controller Python Migration</h1>
-      <p>This is the first Python web runtime slice. Camera and hardware sidecar stay separate services.</p>
+      <p>Python runtime is active with sidecar-driven sensor and relay control.</p>
       <p class="mono">UTC: {{ now }}</p>
+      <p>
+        <a href="/settings">Settings</a> |
+        <a href="/logs">Logs</a> |
+        <a href="/diagnostics">Diagnostics</a>
+      </p>
     </div>
 
     <div class="grid">
@@ -63,7 +73,94 @@
         <p>Camera service is unchanged and expected at port 5001.</p>
         <iframe src="http://localhost:5001/"></iframe>
       </div>
+
+      <div class="card">
+        <h2>Live Sensors</h2>
+        <table id="sensor-table">
+          <thead>
+            <tr><th>Sensor</th><th>Board Pin</th><th>BCM</th><th>Temp C</th><th>Humidity %</th><th>Status</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Manual Relay Control</h2>
+        <p>Use for quick verification while migration is in progress.</p>
+        <div id="relay-buttons"></div>
+        <div id="relay-msg" class="msg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Recent Logs</h2>
+        <table>
+          <thead><tr><th>Timestamp</th><th>Type</th><th>Details</th></tr></thead>
+          <tbody>
+            {% for item in recent_logs %}
+            <tr>
+              <td>{{ item.Timestamp }}</td>
+              <td>{{ item.LogType }}</td>
+              <td>{{ item.Details }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
+
+  <script>
+    async function refreshSensors() {
+      const res = await fetch('/api/sensors/readings');
+      const body = await res.json();
+      const tbody = document.querySelector('#sensor-table tbody');
+      tbody.innerHTML = '';
+      for (const item of body.items || []) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${item.sensorId ?? '-'}</td><td>${item.boardPin ?? '-'}</td><td>${item.bcmGpioPin ?? '-'}</td><td>${item.temperatureC ?? '-'}</td><td>${item.humidityPercent ?? '-'}</td><td>${item.success ? 'ok' : (item.error || 'error')}</td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function setRelay(relayId, state) {
+      const msg = document.getElementById('relay-msg');
+      try {
+        const res = await fetch(`/api/relays/${relayId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state })
+        });
+        const body = await res.json();
+        if (!res.ok || !body.success) {
+          msg.textContent = `Relay ${relayId} request failed`;
+          return;
+        }
+        msg.textContent = `Relay ${relayId} set to ${state ? 'ON' : 'OFF'}`;
+      } catch (e) {
+        msg.textContent = String(e);
+      }
+    }
+
+    function initRelayButtons() {
+      const host = document.getElementById('relay-buttons');
+      for (let i = 1; i <= 6; i++) {
+        const onBtn = document.createElement('button');
+        onBtn.className = 'btn';
+        onBtn.textContent = `Relay ${i} ON`;
+        onBtn.onclick = () => setRelay(i, true);
+        const offBtn = document.createElement('button');
+        offBtn.className = 'btn off';
+        offBtn.textContent = `Relay ${i} OFF`;
+        offBtn.style.marginRight = '10px';
+        offBtn.onclick = () => setRelay(i, false);
+        host.appendChild(onBtn);
+        host.appendChild(offBtn);
+      }
+    }
+
+    initRelayButtons();
+    refreshSensors();
+    setInterval(refreshSensors, 10000);
+  </script>
 </body>
 </html>
