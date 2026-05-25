@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terrarium Logs</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #eef2f7; color: #111827; }
+    .wrap { max-width: 1200px; margin: 20px auto; padding: 0 14px; }
+    .card { background: #fff; border: 1px solid #d6dde7; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    th, td { border-bottom: 1px solid #e5eaf1; padding: 7px; text-align: left; }
+    th { background: #f4f7fb; }
+    .links a { margin-right: 12px; color: #135ea8; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card links">
+      <a href="/">Home</a>
+      <a href="/settings">Settings</a>
+      <a href="/diagnostics">Diagnostics</a>
+    </div>
+
+    <div class="card">
+      <h1>Logs</h1>
+      <form method="get" action="/logs">
+        <label>Type
+          <select name="log_type">
+            <option value="" {% if not log_type %}selected{% endif %}>All</option>
+            <option value="StateChange" {% if log_type == 'StateChange' %}selected{% endif %}>StateChange</option>
+            <option value="HourlySnapshot" {% if log_type == 'HourlySnapshot' %}selected{% endif %}>HourlySnapshot</option>
+          </select>
+        </label>
+        <label>Page Size <input type="number" name="page_size" min="10" max="200" value="{{ page_size }}" /></label>
+        <input type="hidden" name="page" value="1" />
+        <button type="submit">Apply</button>
+      </form>
+      <p>Page {{ page }} / {{ total_pages }} ({{ total_count }} entries)</p>
+      <table>
+        <thead>
+          <tr><th>Timestamp</th><th>Type</th><th>Details</th><th>T1</th><th>RH1</th><th>T2</th><th>RH2</th><th>T3</th><th>RH3</th></tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>{{ item.Timestamp }}</td>
+            <td>{{ item.LogType }}</td>
+            <td>{{ item.Details }}</td>
+            <td>{{ item.Sensor1Temperature if item.Sensor1Temperature is not none else '-' }}</td>
+            <td>{{ item.Sensor1Humidity if item.Sensor1Humidity is not none else '-' }}</td>
+            <td>{{ item.Sensor2Temperature if item.Sensor2Temperature is not none else '-' }}</td>
+            <td>{{ item.Sensor2Humidity if item.Sensor2Humidity is not none else '-' }}</td>
+            <td>{{ item.Sensor3Temperature if item.Sensor3Temperature is not none else '-' }}</td>
+            <td>{{ item.Sensor3Humidity if item.Sensor3Humidity is not none else '-' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p>
+        {% if page > 1 %}
+        <a href="/logs?page={{ page - 1 }}&page_size={{ page_size }}&log_type={{ log_type }}">Previous</a>
+        {% endif %}
+        {% if page < total_pages %}
+        <a href="/logs?page={{ page + 1 }}&page_size={{ page_size }}&log_type={{ log_type }}">Next</a>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+</body>
+</html>

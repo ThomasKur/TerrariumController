@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terrarium Diagnostics</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #eef2f7; color: #111827; }
+    .wrap { max-width: 980px; margin: 20px auto; padding: 0 14px; }
+    .card { background: #fff; border: 1px solid #d6dde7; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .links a { margin-right: 12px; color: #135ea8; text-decoration: none; }
+    pre { background: #0e1726; color: #dbe5f5; padding: 10px; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card links">
+      <a href="/">Home</a>
+      <a href="/settings">Settings</a>
+      <a href="/logs">Logs</a>
+    </div>
+
+    <div class="card">
+      <h1>Diagnostics</h1>
+      <p>UTC: {{ now }}</p>
+      <div class="grid">
+        <div><strong>Control Loop Started</strong><div>{{ diagnostics.controlLoopStarted }}</div></div>
+        <div><strong>Last Cycle Status</strong><div>{{ diagnostics.lastCycleStatus }}</div></div>
+        <div><strong>Last Successful Cycle UTC</strong><div>{{ diagnostics.lastSuccessfulCycleUtc or 'n/a' }}</div></div>
+        <div><strong>Poll Interval Seconds</strong><div>{{ diagnostics.pollIntervalSeconds }}</div></div>
+        <div><strong>Stale Failsafe Seconds</strong><div>{{ diagnostics.staleFailsafeSeconds }}</div></div>
+      </div>
+      <h2>Last Valid Sensor Timestamps</h2>
+      <pre>{{ diagnostics.lastValidSensorTimestamps }}</pre>
+    </div>
+  </div>
+</body>
+</html>

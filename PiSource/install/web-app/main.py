@@ -6,7 +6,7 @@ from typing import Any
 
 import aiosqlite
 import httpx
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -470,14 +470,228 @@ class ManualRelayRequest(BaseModel):
     state: bool
 
 
+class SettingsUpdateRequest(BaseModel):
+    Threshold1Temperature: float
+    Threshold2Temperature: float
+    Threshold3Temperature: float
+    Sensor1HumidityThreshold: float
+    TemperatureHysteresis: float
+    Relay4OnTime: str
+    Relay4OffTime: str
+    Relay1GPIO: int
+    Relay2GPIO: int
+    Relay3GPIO: int
+    Relay4GPIO: int
+    Relay5GPIO: int
+    Relay6GPIO: int
+    Sensor1GPIO: int
+    Sensor2GPIO: int
+    Sensor3GPIO: int
+    LinuxGpioChip: int
+    CameraWidth: int
+    CameraHeight: int
+    CameraFramerate: int
+    LogRetentionMonths: int
+    HumidityLockoutHours: int
+
+
+def validate_settings_payload(payload: SettingsUpdateRequest) -> list[str]:
+    errors: list[str] = []
+
+    if payload.TemperatureHysteresis <= 0 or payload.TemperatureHysteresis > 5:
+        errors.append("TemperatureHysteresis must be between 0 and 5 C")
+
+    for name in ("Threshold1Temperature", "Threshold2Temperature", "Threshold3Temperature"):
+        value = float(getattr(payload, name))
+        if value < 5 or value > 60:
+            errors.append(f"{name} must be between 5 and 60 C")
+
+    if payload.Sensor1HumidityThreshold < 20 or payload.Sensor1HumidityThreshold > 100:
+        errors.append("Sensor1HumidityThreshold must be between 20 and 100")
+
+    for value, field in ((payload.Relay4OnTime, "Relay4OnTime"), (payload.Relay4OffTime, "Relay4OffTime")):
+        try:
+            parts = value.split(":")
+            hour = int(parts[0])
+            minute = int(parts[1])
+            if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+                raise ValueError("out of range")
+        except Exception:
+            errors.append(f"{field} must use HH:mm format")
+
+    relay_pins = [
+        payload.Relay1GPIO,
+        payload.Relay2GPIO,
+        payload.Relay3GPIO,
+        payload.Relay4GPIO,
+        payload.Relay5GPIO,
+        payload.Relay6GPIO,
+    ]
+    sensor_pins = [payload.Sensor1GPIO, payload.Sensor2GPIO, payload.Sensor3GPIO]
+
+    if any(pin <= 0 for pin in relay_pins + sensor_pins):
+        errors.append("GPIO pins must be greater than zero")
+
+    if len(set(relay_pins)) != len(relay_pins):
+        errors.append("Relay GPIO pins must be unique")
+
+    if len(set(sensor_pins)) != len(sensor_pins):
+        errors.append("Sensor GPIO pins must be unique")
+
+    if payload.LinuxGpioChip < -1:
+        errors.append("LinuxGpioChip must be -1 (auto) or a non-negative chip id")
+
+    if payload.LogRetentionMonths < 1 or payload.LogRetentionMonths > 24:
+        errors.append("LogRetentionMonths must be between 1 and 24")
+
+    if payload.HumidityLockoutHours < 1 or payload.HumidityLockoutHours > 48:
+        errors.append("HumidityLockoutHours must be between 1 and 48")
+
+    return errors
+
+
+async def update_settings(payload: SettingsUpdateRequest) -> dict[str, Any] | None:
+    now_iso = to_iso_utc(datetime.now(timezone.utc))
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT Id FROM Settings LIMIT 1") as cur:
+            row = await cur.fetchone()
+
+        if row is None:
+            return None
+
+        settings_id = int(row[0])
+        await db.execute(
+            """
+            UPDATE Settings
+            SET Threshold1Temperature = ?, Threshold2Temperature = ?, Threshold3Temperature = ?,
+                Sensor1HumidityThreshold = ?, TemperatureHysteresis = ?,
+                Relay4OnTime = ?, Relay4OffTime = ?,
+                Relay1GPIO = ?, Relay2GPIO = ?, Relay3GPIO = ?, Relay4GPIO = ?, Relay5GPIO = ?, Relay6GPIO = ?,
+                Sensor1GPIO = ?, Sensor2GPIO = ?, Sensor3GPIO = ?, LinuxGpioChip = ?,
+                CameraWidth = ?, CameraHeight = ?, CameraFramerate = ?,
+                LogRetentionMonths = ?, HumidityLockoutHours = ?, LastModified = ?
+            WHERE Id = ?
+            """,
+            (
+                payload.Threshold1Temperature,
+                payload.Threshold2Temperature,
+                payload.Threshold3Temperature,
+                payload.Sensor1HumidityThreshold,
+                payload.TemperatureHysteresis,
+                payload.Relay4OnTime,
+                payload.Relay4OffTime,
+                payload.Relay1GPIO,
+                payload.Relay2GPIO,
+                payload.Relay3GPIO,
+                payload.Relay4GPIO,
+                payload.Relay5GPIO,
+                payload.Relay6GPIO,
+                payload.Sensor1GPIO,
+                payload.Sensor2GPIO,
+                payload.Sensor3GPIO,
+                payload.LinuxGpioChip,
+                payload.CameraWidth,
+                payload.CameraHeight,
+                payload.CameraFramerate,
+                payload.LogRetentionMonths,
+                payload.HumidityLockoutHours,
+                now_iso,
+                settings_id,
+            ),
+        )
+        await db.commit()
+
+    return await get_settings_row()
+
+
 @app.get("/")
 async def home(request: Request):
     settings = await get_settings_row()
+    logs_payload = await api_logs(limit=12)
+    diagnostics_payload = await api_control_diagnostics()
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "settings": settings,
+            "now": datetime.now(timezone.utc).isoformat(),
+            "recent_logs": logs_payload.get("items", []),
+            "diagnostics": diagnostics_payload,
+        },
+    )
+
+
+@app.get("/settings")
+async def settings_page(request: Request):
+    settings = await get_settings_row()
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "settings": settings,
+            "now": datetime.now(timezone.utc).isoformat(),
+        },
+    )
+
+
+@app.get("/logs")
+async def logs_page(
+    request: Request,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=10, le=200),
+    log_type: str = Query(default=""),
+):
+    offset = (page - 1) * page_size
+    where_clause = ""
+    args: list[Any] = []
+    if log_type in ("StateChange", "HourlySnapshot"):
+        where_clause = "WHERE LogType = ?"
+        args.append(log_type)
+
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(f"SELECT COUNT(*) FROM LogEntries {where_clause}", args) as cur:
+            total_count = int((await cur.fetchone())[0])
+
+        query = f"""
+            SELECT Id, Timestamp, LogType, Details, RelayId, RelayState,
+                   Sensor1Temperature, Sensor1Humidity,
+                   Sensor2Temperature, Sensor2Humidity,
+                   Sensor3Temperature, Sensor3Humidity
+            FROM LogEntries
+            {where_clause}
+            ORDER BY Timestamp DESC, Id DESC
+            LIMIT ? OFFSET ?
+        """
+        query_args = args + [page_size, offset]
+        async with db.execute(query, query_args) as cur:
+            rows = [dict(row) for row in await cur.fetchall()]
+
+    total_pages = max(1, (total_count + page_size - 1) // page_size)
+    return templates.TemplateResponse(
+        "logs.html",
+        {
+            "request": request,
+            "items": rows,
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": total_pages,
+            "log_type": log_type,
+        },
+    )
+
+
+@app.get("/diagnostics")
+async def diagnostics_page(request: Request):
+    diagnostics = await api_control_diagnostics()
+    return templates.TemplateResponse(
+        "diagnostics.html",
+        {
+            "request": request,
+            "diagnostics": diagnostics,
             "now": datetime.now(timezone.utc).isoformat(),
         },
     )
@@ -532,6 +746,19 @@ async def api_settings():
     if settings is None:
         return JSONResponse(status_code=404, content={"error": "settings row not found"})
     return settings
+
+
+@app.put("/api/settings")
+async def api_update_settings(request: SettingsUpdateRequest):
+    errors = validate_settings_payload(request)
+    if errors:
+        return JSONResponse(status_code=400, content={"errors": errors})
+
+    updated = await update_settings(request)
+    if updated is None:
+        return JSONResponse(status_code=404, content={"error": "settings row not found"})
+
+    return {"success": True, "settings": updated}
 
 
 @app.get("/api/sensors/readings")

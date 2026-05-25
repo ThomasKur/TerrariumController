@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terrarium Settings</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #eef2f7; color: #1f2937; }
+    .wrap { max-width: 980px; margin: 20px auto; padding: 0 14px; }
+    .card { background: #fff; border: 1px solid #d6dde7; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; color: #4b5563; }
+    input, select { padding: 8px; border: 1px solid #c8d2df; border-radius: 8px; font-size: 0.95rem; }
+    button { padding: 10px 14px; border-radius: 8px; border: 1px solid #0d6f58; background: #0f8a6c; color: #fff; font-weight: 600; cursor: pointer; }
+    .links a { margin-right: 12px; color: #135ea8; text-decoration: none; }
+    .msg { margin-top: 10px; font-weight: 600; }
+    .err { color: #b91c1c; }
+    .ok { color: #0f766e; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card links">
+      <a href="/">Home</a>
+      <a href="/logs">Logs</a>
+      <a href="/diagnostics">Diagnostics</a>
+    </div>
+
+    <div class="card">
+      <h1>Settings</h1>
+      <p>UTC: {{ now }}</p>
+      {% if settings %}
+      <form id="settings-form" class="grid">
+        <label>Threshold 1 C<input name="Threshold1Temperature" type="number" step="0.1" value="{{ settings.Threshold1Temperature }}" required></label>
+        <label>Threshold 2 C<input name="Threshold2Temperature" type="number" step="0.1" value="{{ settings.Threshold2Temperature }}" required></label>
+        <label>Threshold 3 C<input name="Threshold3Temperature" type="number" step="0.1" value="{{ settings.Threshold3Temperature }}" required></label>
+        <label>Humidity Threshold %<input name="Sensor1HumidityThreshold" type="number" step="0.1" value="{{ settings.Sensor1HumidityThreshold }}" required></label>
+        <label>Hysteresis C<input name="TemperatureHysteresis" type="number" step="0.1" value="{{ settings.TemperatureHysteresis }}" required></label>
+        <label>Relay4 On (HH:mm)<input name="Relay4OnTime" value="{{ settings.Relay4OnTime }}" required></label>
+        <label>Relay4 Off (HH:mm)<input name="Relay4OffTime" value="{{ settings.Relay4OffTime }}" required></label>
+
+        <label>Relay1 GPIO<input name="Relay1GPIO" type="number" value="{{ settings.Relay1GPIO }}" required></label>
+        <label>Relay2 GPIO<input name="Relay2GPIO" type="number" value="{{ settings.Relay2GPIO }}" required></label>
+        <label>Relay3 GPIO<input name="Relay3GPIO" type="number" value="{{ settings.Relay3GPIO }}" required></label>
+        <label>Relay4 GPIO<input name="Relay4GPIO" type="number" value="{{ settings.Relay4GPIO }}" required></label>
+        <label>Relay5 GPIO<input name="Relay5GPIO" type="number" value="{{ settings.Relay5GPIO }}" required></label>
+        <label>Relay6 GPIO<input name="Relay6GPIO" type="number" value="{{ settings.Relay6GPIO }}" required></label>
+
+        <label>Sensor1 GPIO<input name="Sensor1GPIO" type="number" value="{{ settings.Sensor1GPIO }}" required></label>
+        <label>Sensor2 GPIO<input name="Sensor2GPIO" type="number" value="{{ settings.Sensor2GPIO }}" required></label>
+        <label>Sensor3 GPIO<input name="Sensor3GPIO" type="number" value="{{ settings.Sensor3GPIO }}" required></label>
+
+        <label>Linux GPIO Chip<select name="LinuxGpioChip"><option value="-1" {% if settings.LinuxGpioChip == -1 %}selected{% endif %}>Auto</option><option value="0" {% if settings.LinuxGpioChip == 0 %}selected{% endif %}>gpiochip0</option><option value="4" {% if settings.LinuxGpioChip == 4 %}selected{% endif %}>gpiochip4</option></select></label>
+        <label>Camera Width<input name="CameraWidth" type="number" value="{{ settings.CameraWidth }}" required></label>
+        <label>Camera Height<input name="CameraHeight" type="number" value="{{ settings.CameraHeight }}" required></label>
+        <label>Camera FPS<input name="CameraFramerate" type="number" value="{{ settings.CameraFramerate }}" required></label>
+        <label>Log Retention Months<input name="LogRetentionMonths" type="number" value="{{ settings.LogRetentionMonths }}" required></label>
+        <label>Humidity Lockout Hours<input name="HumidityLockoutHours" type="number" value="{{ settings.HumidityLockoutHours }}" required></label>
+      </form>
+      <button id="save-btn" type="button">Save Settings</button>
+      <div id="msg" class="msg"></div>
+      {% else %}
+      <p class="err">Settings row not found.</p>
+      {% endif %}
+    </div>
+  </div>
+
+<script>
+const saveBtn = document.getElementById('save-btn');
+if (saveBtn) {
+  saveBtn.addEventListener('click', async () => {
+    const form = document.getElementById('settings-form');
+    const msg = document.getElementById('msg');
+    const fd = new FormData(form);
+    const payload = {};
+    for (const [k, v] of fd.entries()) {
+      if (["Relay4OnTime", "Relay4OffTime"].includes(k)) {
+        payload[k] = String(v);
+      } else {
+        payload[k] = Number(v);
+      }
+    }
+
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        const errs = body.errors ? body.errors.join('; ') : (body.error || 'Update failed');
+        msg.textContent = errs;
+        msg.className = 'msg err';
+        return;
+      }
+      msg.textContent = 'Settings saved.';
+      msg.className = 'msg ok';
+    } catch (e) {
+      msg.textContent = String(e);
+      msg.className = 'msg err';
+    }
+  });
+}
+</script>
+</body>
+</html>
