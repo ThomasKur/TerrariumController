@@ -131,9 +131,7 @@ if systemctl list-unit-files | grep -q '^terrarium.service'; then
     systemctl stop terrarium 2>/dev/null || true
 fi
 
-# .NET runtime installation removed — default deployment uses self-contained binaries.
-# If you choose framework-dependent deployment, ensure the ASP.NET Core runtime 10.x
-# is installed manually (apt install aspnetcore-runtime-10.0) before starting the service.
+# Python runtime is the only supported main application runtime.
 
 # Create user and directory for the app
 echo "Creating terrarium user and directories..."
@@ -178,8 +176,6 @@ fi
 if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" << 'EOF'
 # Terrarium Controller environment configuration
-ASPNETCORE_URLS=http://0.0.0.0:5000
-ASPNETCORE_ENVIRONMENT=Production
 HardwareSidecar__Mode=PythonSidecar
 CAMERA_WIDTH=1920
 CAMERA_HEIGHT=1080
@@ -201,24 +197,18 @@ if ! grep -q '^HardwareSidecar__Mode=' "$ENV_FILE"; then
     echo "Added HardwareSidecar__Mode=PythonSidecar to $ENV_FILE"
 fi
 
-# Create app launcher script to handle self-contained or framework-dependent deployments
+# Create app launcher script (Python web runtime only)
 echo "Creating app launcher script..."
 cat > /opt/terrarium/run.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Prefer Python web app runtime if present.
 if [ -f "/opt/terrarium/web-app/main.py" ] && [ -x "/opt/terrarium/web-app/run-web.sh" ]; then
     exec /opt/terrarium/web-app/run-web.sh
 fi
 
-# Fall back to legacy self-contained C# binary if Python app is absent.
-if [ -x "/opt/terrarium/TerrariumController" ]; then
-    exec /opt/terrarium/TerrariumController
-fi
-
 echo "No runnable terrarium app found." >&2
-echo "Expected either /opt/terrarium/web-app/main.py + run-web.sh or /opt/terrarium/TerrariumController" >&2
+echo "Expected /opt/terrarium/web-app/main.py + /opt/terrarium/web-app/run-web.sh" >&2
 exit 1
 EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
@@ -440,16 +430,7 @@ if [ -n "$RUNTIME_GPIO_PKG" ]; then
         echo -e "${YELLOW}Warning: failed to install GPIO runtime package $RUNTIME_GPIO_PKG${NC}"
     fi
 else
-    echo -e "${YELLOW}Warning: no libgpiod runtime package found in repositories (trying fallback GPIO driver at runtime)${NC}"
-fi
-
-# Optional: headers for native builds/debugging.
-if apt-cache show libgpiod-dev >/dev/null 2>&1; then
-    if apt install -y libgpiod-dev; then
-        echo -e "${GREEN}Installed optional package: libgpiod-dev${NC}"
-    else
-        echo -e "${YELLOW}Warning: failed to install optional package libgpiod-dev${NC}"
-    fi
+    echo -e "${YELLOW}Warning: no libgpiod runtime package found in repositories${NC}"
 fi
 
 # Userspace GPIO tools (includes gpiodetect on most distros).
@@ -467,16 +448,12 @@ if command -v gpiodetect >/dev/null 2>&1; then
     echo "Detected GPIO chips:"
     gpiodetect || true
 else
-    echo -e "${YELLOW}Warning: gpiodetect command not found. .NET GPIO may still work via fallback driver.${NC}"
+    echo -e "${YELLOW}Warning: gpiodetect command not found.${NC}"
 fi
 
-if ! apt install -y python3-gpiozero python3-rpi.gpio; then
-    echo -e "${YELLOW}Warning: Python GPIO bindings not available (optional)${NC}"
-fi
-
-# Python sidecar prerequisites (optional, only needed when HardwareSidecar.Mode=PythonSidecar).
+# Python prerequisites for sidecar and web runtime.
 if ! apt install -y python3-venv python3-pip; then
-    echo -e "${YELLOW}Warning: python3-venv/python3-pip installation failed; sidecar mode may not work${NC}"
+    echo -e "${YELLOW}Warning: python3-venv/python3-pip installation failed; Python services may not work${NC}"
 fi
 
 echo "Deploying Python hardware sidecar files..."
@@ -566,31 +543,11 @@ if [ -f "$ENV_FILE" ]; then
     fi
 fi
 
-if [ "$ENABLE_SIDECAR" = false ] && command -v python3 >/dev/null 2>&1 && [ -f "/opt/terrarium/appsettings.json" ]; then
-    if python3 - <<'PY'
-import json
-from pathlib import Path
-
-config_path = Path('/opt/terrarium/appsettings.json')
-try:
-    data = json.loads(config_path.read_text())
-except Exception:
-    raise SystemExit(1)
-
-hardware = data.get('HardwareSidecar', {})
-mode = str(hardware.get('Mode', '')).strip().lower()
-raise SystemExit(0 if mode == 'pythonsidecar' else 1)
-PY
-    then
-        ENABLE_SIDECAR=true
-    fi
-fi
-
 if [ "$ENABLE_SIDECAR" = true ] && systemctl list-unit-files | grep -q '^terrarium-hw-sidecar.service'; then
     systemctl enable terrarium-hw-sidecar
     echo -e "${GREEN}Python sidecar service enabled (HardwareSidecar mode detected as PythonSidecar)${NC}"
 else
-    echo "Python sidecar service installed but not enabled. Set HardwareSidecar__Mode=PythonSidecar in /etc/terrarium/terrarium.env (or HardwareSidecar.Mode in appsettings.json) and rerun setup.sh."
+    echo "Python sidecar service installed but not enabled. Set HardwareSidecar__Mode=PythonSidecar in /etc/terrarium/terrarium.env and rerun setup.sh."
 fi
 
 # Create kiosk autostart script(s)
@@ -716,11 +673,12 @@ fi
 # Configure firewall if active
 echo "Checking firewall configuration..."
 FIREWALL_FOUND=false
+APP_PORT=5000
 CAMERA_PORT=5001
 
 if [ -f /etc/terrarium/terrarium.env ]; then
     CAMERA_PORT_FROM_ENV=$(grep -E '^CAMERA_STREAM_PORT=' /etc/terrarium/terrarium.env | tail -n 1 | cut -d'=' -f2 | tr -d '[:space:]')
-    if [[ "$CAMERA_PORT_FROM_ENV" =~ ^[0-9]+$ ]]; then
+    if [[ "$CAMERA_PORT_FROM_ENV" =~ ^[0-9]+$ ]] && [ "$CAMERA_PORT_FROM_ENV" -ge 1 ] && [ "$CAMERA_PORT_FROM_ENV" -le 65535 ]; then
         CAMERA_PORT="$CAMERA_PORT_FROM_ENV"
     fi
 fi
@@ -728,24 +686,24 @@ fi
 # Check UFW (Ubuntu/Debian)
 if command -v ufw >/dev/null 2>&1; then
     if ufw status | grep -q "Status: active"; then
-        echo "UFW firewall is active, opening ports 5000 and $CAMERA_PORT..."
-        ufw allow 5000/tcp
-        if [ "$CAMERA_PORT" != "5000" ]; then
+        echo "UFW firewall is active, opening ports $APP_PORT and $CAMERA_PORT..."
+        ufw allow "$APP_PORT"/tcp
+        if [ "$CAMERA_PORT" != "$APP_PORT" ]; then
             ufw allow "$CAMERA_PORT"/tcp
         fi
-        echo -e "${GREEN}Ports 5000 and $CAMERA_PORT opened in UFW firewall${NC}"
+        echo -e "${GREEN}Ports $APP_PORT and $CAMERA_PORT opened in UFW firewall${NC}"
         FIREWALL_FOUND=true
     fi
 # Check firewalld (RHEL/CentOS)
 elif command -v firewall-cmd >/dev/null 2>&1; then
     if firewall-cmd --state 2>/dev/null | grep -q "running"; then
-        echo "firewalld is active, opening ports 5000 and $CAMERA_PORT..."
-        firewall-cmd --permanent --add-port=5000/tcp
-        if [ "$CAMERA_PORT" != "5000" ]; then
+        echo "firewalld is active, opening ports $APP_PORT and $CAMERA_PORT..."
+        firewall-cmd --permanent --add-port="$APP_PORT"/tcp
+        if [ "$CAMERA_PORT" != "$APP_PORT" ]; then
             firewall-cmd --permanent --add-port="$CAMERA_PORT"/tcp
         fi
         firewall-cmd --reload
-        echo -e "${GREEN}Ports 5000 and $CAMERA_PORT opened in firewalld${NC}"
+        echo -e "${GREEN}Ports $APP_PORT and $CAMERA_PORT opened in firewalld${NC}"
         FIREWALL_FOUND=true
     fi
 # Check iptables (most common on Raspberry Pi OS)
@@ -754,17 +712,17 @@ elif command -v iptables >/dev/null 2>&1; then
     if [ "$(iptables -L -n | wc -l)" -gt 8 ]; then
         IPTABLES_RULE_CHANGED=false
 
-        echo "iptables firewall detected, checking for port 5000 rule..."
-        if ! iptables -C INPUT -p tcp --dport 5000 -j ACCEPT 2>/dev/null; then
-            echo "Adding iptables rule for port 5000..."
-            iptables -I INPUT -p tcp --dport 5000 -j ACCEPT
+        echo "iptables firewall detected, checking for app port $APP_PORT rule..."
+        if ! iptables -C INPUT -p tcp --dport "$APP_PORT" -j ACCEPT 2>/dev/null; then
+            echo "Adding iptables rule for app port $APP_PORT..."
+            iptables -I INPUT -p tcp --dport "$APP_PORT" -j ACCEPT
             IPTABLES_RULE_CHANGED=true
-            echo -e "${GREEN}Port 5000 opened in iptables${NC}"
+            echo -e "${GREEN}Port $APP_PORT opened in iptables${NC}"
         else
-            echo "Port 5000 already allowed in iptables"
+            echo "Port $APP_PORT already allowed in iptables"
         fi
 
-        if [ "$CAMERA_PORT" != "5000" ]; then
+        if [ "$CAMERA_PORT" != "$APP_PORT" ]; then
             echo "Checking iptables rule for camera port $CAMERA_PORT..."
             if ! iptables -C INPUT -p tcp --dport "$CAMERA_PORT" -j ACCEPT 2>/dev/null; then
                 echo "Adding iptables rule for camera port $CAMERA_PORT..."
@@ -792,58 +750,16 @@ elif command -v iptables >/dev/null 2>&1; then
 fi
 
 if [ "$FIREWALL_FOUND" = false ]; then
-    echo "No active firewall detected - ports 5000 and $CAMERA_PORT should be accessible"
+    echo "No active firewall detected - ports $APP_PORT and $CAMERA_PORT should be accessible"
 fi
 
-# Deploy pre-built app if present
-echo "Looking for pre-built app..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_DIR="$PARENT_DIR/TerrariumController"
+# Remove stale legacy runtime artifacts when present.
+rm -f /opt/terrarium/TerrariumController /opt/terrarium/TerrariumController.dll /opt/terrarium/appsettings.json 2>/dev/null || true
 
-# Check multiple possible locations
-APP_SOURCE=""
-if [ -d "$SCRIPT_DIR/app" ]; then
-    APP_SOURCE="$SCRIPT_DIR/app"
-elif [ -d "$PROJECT_DIR/bin/Release/net10.0/publish" ]; then
-    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0/publish"
-elif [ -d "$PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish" ]; then
-    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish"
-elif [ -d "$PROJECT_DIR/bin/Release/net10.0" ]; then
-    APP_SOURCE="$PROJECT_DIR/bin/Release/net10.0"
-elif [ -d "$PARENT_DIR/bin/Release/net10.0/publish" ]; then
-    APP_SOURCE="$PARENT_DIR/bin/Release/net10.0/publish"
-elif [ -d "$PARENT_DIR/bin/Release/net10.0" ]; then
-    APP_SOURCE="$PARENT_DIR/bin/Release/net10.0"
-fi
+chmod +x /opt/terrarium/run.sh
 
-if [ -n "$APP_SOURCE" ] && [ -d "$APP_SOURCE" ]; then
-    echo "Deploying pre-built app from $APP_SOURCE..."
-    cp -R "$APP_SOURCE"/* /opt/terrarium/
-    chown -R terrarium:terrarium /opt/terrarium
-    chmod +x /opt/terrarium/TerrariumController 2>/dev/null || true
-    chmod +x /opt/terrarium/run.sh
-else
-    echo -e "${YELLOW}Warning: No pre-built app found${NC}"
-    echo "Expected locations (in order of preference):"
-    echo "  - $SCRIPT_DIR/app"
-    echo "  - $PROJECT_DIR/bin/Release/net10.0/publish"
-    echo "  - $PROJECT_DIR/bin/Release/net10.0/linux-arm64/publish"
-    echo ""
-    echo "Build with one of:"
-    echo "  cd $PARENT_DIR"
-    echo "  dotnet publish TerrariumController/TerrariumController.csproj -c Release"
-    echo "  # OR for self-contained:"
-    echo "  dotnet publish TerrariumController/TerrariumController.csproj -c Release -r linux-arm64 --self-contained"
-    echo ""
-    echo -e "${YELLOW}After building, re-run this setup script OR manually copy:${NC}"
-    echo -e "${YELLOW}  sudo cp -R <publish-folder>/* /opt/terrarium/${NC}"
-    echo -e "${YELLOW}  sudo chown -R terrarium:terrarium /opt/terrarium${NC}"
-    echo -e "${YELLOW}  sudo chmod +x /opt/terrarium/run.sh${NC}"
-fi
-
-# Verify app deployment (self-contained binary)
-if [ -x "/opt/terrarium/run.sh" ] && { [ -f "/opt/terrarium/web-app/main.py" ] || [ -x "/opt/terrarium/TerrariumController" ]; }; then
+# Verify Python app deployment
+if [ -x "/opt/terrarium/run.sh" ] && [ -f "/opt/terrarium/web-app/main.py" ] && [ -x "/opt/terrarium/web-app/run-web.sh" ]; then
     echo -e "${GREEN}App launcher deployed successfully${NC}"
     
     # Start the service automatically
@@ -957,7 +873,7 @@ if [ -x "/opt/terrarium/run.sh" ] && { [ -f "/opt/terrarium/web-app/main.py" ] |
     fi
 else
     echo -e "${YELLOW}Note: No runnable app found at /opt/terrarium${NC}"
-    echo -e "${YELLOW}Deploy either Python web-app files or the self-contained C# binary before starting the service${NC}"
+    echo -e "${YELLOW}Deploy Python web-app files (main.py, run-web.sh, templates, requirements.txt) before starting the service${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"

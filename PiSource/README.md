@@ -78,11 +78,15 @@ Access at `https://localhost:7000` or `http://localhost:5000` (depending on laun
 
 The app will create a SQLite database in the current directory: `terrarium.db`
 
-### Publish for Raspberry Pi
+### Deploy on Raspberry Pi
+Use the installer workflow in `PiSource/install`:
+
 ```bash
-dotnet publish -c Release -o ./publish
+cd install
+sudo bash setup.sh
 ```
-Copy the contents of `publish/` to `/opt/terrarium/` on the Pi.
+
+The setup script deploys the Python web runtime and hardware sidecar assets.
 
 ## Migrations
 

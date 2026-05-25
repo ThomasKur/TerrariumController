@@ -1,4 +1,4 @@
-name: Build and Package
+name: Package Installer
 
 on:
   push:
@@ -8,35 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-zip:
+  package-installer:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore PiSource/PiSource.sln
-
-      - name: Build
-        run: dotnet build PiSource/PiSource.sln --configuration Release --no-restore
-
-      - name: Publish app
-        run: dotnet publish PiSource/TerrariumController/TerrariumController.csproj --configuration Release --output publish
-
-      - name: Prepare package
+      - name: Prepare installer package
         run: |
-          mkdir -p package/app
-          cp -R publish/* package/app/
-          cp PiSource/install/setup.sh package/
-          cp PiSource/install/terrarium.service package/
+          mkdir -p package
+          cp -R PiSource/install package/
           cp README.md package/README.md
-          chmod +x package/setup.sh
+          chmod +x package/install/setup.sh
 
       - name: Create zip
         run: |

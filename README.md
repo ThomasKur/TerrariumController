@@ -79,30 +79,24 @@ See [PiSource/README.md](PiSource/README.md) for development setup and build ins
    - Systemd service units (`terrarium` and `terrarium-camera`)
    - Chromium browser (optional, for kiosk mode autostart)
 
-3. **Build and publish the application**:
-   ```bash
-   cd ..
-   dotnet publish -c Release -o /opt/terrarium
-   ```
-
-4. **Set permissions**:
+3. **Set permissions**:
    ```bash
    sudo chown -R terrarium:terrarium /opt/terrarium
    ```
 
-5. **Start the service**:
+4. **Start the service**:
    ```bash
    sudo systemctl start terrarium
    sudo systemctl enable terrarium  # Auto-start on boot
    ```
 
-6. **Verify it's running**:
+5. **Verify it's running**:
    ```bash
    sudo systemctl status terrarium
    sudo journalctl -u terrarium -f  # View logs
    ```
 
-7. **Access the UI**:
+6. **Access the UI**:
    - **With Chromium kiosk** (if installed): Touch screen auto-launches full-screen Chromium at startup
    - **Any browser**: Open browser and navigate to `http://<pi-ip>:5000`
    - **Remote SSH**: App runs on port 5000; access from any browser on your network

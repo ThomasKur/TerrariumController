@@ -12,21 +12,18 @@ Goal:
 - Ask the user whether to push after committing.
 
 Required execution order (do not skip):
-1. Run the build script first:
-   - From repo root, execute `pwsh -File PiSource/install/build-for-pi.ps1`.
-   - If build fails, stop and report the failure clearly. Do not create commits.
-2. Inspect git changes:
+1. Inspect git changes:
    - Include tracked, modified, deleted, and untracked files.
    - Stage with `git add -A`.
-3. Create commit(s):
+2. Create commit(s):
    - If changes belong to one concern, create one commit.
    - If changes contain different concerns (for example docs + code fix + tests), create multiple commits by logical grouping.
    - Use concise Conventional Commit messages (for example `feat: ...`, `fix: ...`, `docs: ...`, `chore: ...`, `test: ...`).
    - Do not amend existing commits unless the user explicitly requests it.
-4. After all commits are created, ask the user:
+3. After all commits are created, ask the user:
    - "Commits are ready. Should I push them to origin now?"
    - Do not push unless the user explicitly says yes.
-5. If user approves push:
+4. If user approves push:
    - Push current branch to origin.
    - Report push result.
 
