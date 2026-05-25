@@ -101,6 +101,22 @@ namespace TerrariumController.Services
                         sensorId,
                         gpioPin,
                         sidecarResponse?.Error ?? "no response");
+
+                    if (LastValidReadings.TryGetValue(sensorId, out var cachedSidecarReading))
+                    {
+                        return new SensorReading
+                        {
+                            SensorId = sensorId,
+                            Timestamp = DateTime.UtcNow,
+                            Temperature = cachedSidecarReading.Temperature,
+                            Humidity = cachedSidecarReading.Humidity,
+                            IsValid = false,
+                            Label = GetSensorLabel(sensorId)
+                        };
+                    }
+
+                    // In sidecar mode, do not fall back to local GPIO sensor reads.
+                    return null;
                 }
 
                 // Try to read the DHT22 sensor
