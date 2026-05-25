@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Terrarium Controller (Python)</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --ink: #152238;
+      --muted: #5f6b7a;
+      --accent: #0c7a5d;
+      --line: #d9dfe6;
+    }
+    body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: linear-gradient(180deg, #eef3f8 0%, #f8fafc 100%); color: var(--ink); }
+    .wrap { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: 0 10px 24px rgba(17, 30, 47, 0.06); }
+    h1 { margin: 0 0 8px; font-size: 1.6rem; }
+    h2 { margin: 0 0 8px; font-size: 1.1rem; }
+    p, li { color: var(--muted); }
+    .ok { color: var(--accent); font-weight: 600; }
+    .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9rem; }
+    a { color: #1259a7; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    iframe { width: 100%; height: 240px; border: 1px solid var(--line); border-radius: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Terrarium Controller Python Migration</h1>
+      <p>This is the first Python web runtime slice. Camera and hardware sidecar stay separate services.</p>
+      <p class="mono">UTC: {{ now }}</p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Runtime Endpoints</h2>
+        <ul>
+          <li><a href="/healthz">/healthz</a></li>
+          <li><a href="/readyz">/readyz</a></li>
+          <li><a href="/api/settings">/api/settings</a></li>
+          <li><a href="/api/sensors/readings">/api/sensors/readings</a></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Settings Snapshot</h2>
+        {% if settings %}
+          <p class="ok">Settings row loaded from SQLite.</p>
+          <p class="mono">Relay1GPIO={{ settings.Relay1GPIO }}, Relay2GPIO={{ settings.Relay2GPIO }}, Relay3GPIO={{ settings.Relay3GPIO }}</p>
+          <p class="mono">Sensor1GPIO={{ settings.Sensor1GPIO }}, Sensor2GPIO={{ settings.Sensor2GPIO }}, Sensor3GPIO={{ settings.Sensor3GPIO }}</p>
+          <p class="mono">LinuxGpioChip={{ settings.LinuxGpioChip }}, LastModified={{ settings.LastModified }}</p>
+        {% else %}
+          <p>No settings row found.</p>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <h2>Camera Preview</h2>
+        <p>Camera service is unchanged and expected at port 5001.</p>
+        <iframe src="http://localhost:5001/"></iframe>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

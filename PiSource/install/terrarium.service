@@ -2,6 +2,7 @@
 Description=Terrarium Controller Service
 After=network.target
 Wants=terrarium-camera.service
+Wants=terrarium-hw-sidecar.service
 StartLimitIntervalSec=0
 
 [Service]

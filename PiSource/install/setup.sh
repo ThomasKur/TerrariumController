@@ -141,12 +141,15 @@ useradd -m -s /bin/bash terrarium || true
 mkdir -p /opt/terrarium
 mkdir -p /opt/terrarium/logs
 mkdir -p /opt/terrarium-hw-sidecar
+mkdir -p /opt/terrarium/web-app
 chown terrarium:terrarium /opt/terrarium
 chown terrarium:terrarium /opt/terrarium/logs
 chown terrarium:terrarium /opt/terrarium-hw-sidecar
+chown terrarium:terrarium /opt/terrarium/web-app
 chmod 755 /opt/terrarium
 chmod 2775 /opt/terrarium/logs
 chmod 755 /opt/terrarium-hw-sidecar
+chmod 755 /opt/terrarium/web-app
 
 echo "Creating service environment file..."
 mkdir -p /etc/terrarium
@@ -204,14 +207,19 @@ cat > /opt/terrarium/run.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Require self-contained binary
+# Prefer Python web app runtime if present.
+if [ -f "/opt/terrarium/web-app/main.py" ] && [ -x "/opt/terrarium/web-app/run-web.sh" ]; then
+    exec /opt/terrarium/web-app/run-web.sh
+fi
+
+# Fall back to legacy self-contained C# binary if Python app is absent.
 if [ -x "/opt/terrarium/TerrariumController" ]; then
     exec /opt/terrarium/TerrariumController
-else
-    echo "Self-contained binary not found at /opt/terrarium/TerrariumController" >&2
-    echo "Rebuild with self-contained publish (linux-arm64) and rerun setup." >&2
-    exit 1
 fi
+
+echo "No runnable terrarium app found." >&2
+echo "Expected either /opt/terrarium/web-app/main.py + run-web.sh or /opt/terrarium/TerrariumController" >&2
+exit 1
 EOF
 chown terrarium:terrarium /opt/terrarium/run.sh
 chmod +x /opt/terrarium/run.sh
@@ -479,6 +487,16 @@ if [ -d "$SCRIPT_DIR/hw-sidecar" ]; then
     echo -e "${GREEN}Python hardware sidecar files deployed to /opt/terrarium-hw-sidecar${NC}"
 else
     echo -e "${YELLOW}Warning: $SCRIPT_DIR/hw-sidecar not found; sidecar mode files were not deployed${NC}"
+fi
+
+echo "Deploying Python web app files..."
+if [ -d "$SCRIPT_DIR/web-app" ]; then
+    cp -R "$SCRIPT_DIR/web-app"/* /opt/terrarium/web-app/
+    chown -R terrarium:terrarium /opt/terrarium/web-app
+    chmod +x /opt/terrarium/web-app/run-web.sh 2>/dev/null || true
+    echo -e "${GREEN}Python web app files deployed to /opt/terrarium/web-app${NC}"
+else
+    echo -e "${YELLOW}Warning: $SCRIPT_DIR/web-app not found; Python web app files were not deployed${NC}"
 fi
 
 # Install camera streaming tools
@@ -825,8 +843,8 @@ else
 fi
 
 # Verify app deployment (self-contained binary)
-if [ -x "/opt/terrarium/TerrariumController" ]; then
-    echo -e "${GREEN}App deployed successfully${NC}"
+if [ -x "/opt/terrarium/run.sh" ] && { [ -f "/opt/terrarium/web-app/main.py" ] || [ -x "/opt/terrarium/TerrariumController" ]; }; then
+    echo -e "${GREEN}App launcher deployed successfully${NC}"
     
     # Start the service automatically
     echo ""
@@ -938,8 +956,8 @@ if [ -x "/opt/terrarium/TerrariumController" ]; then
         echo -e "${RED}Service failed - see logs above${NC}"
     fi
 else
-    echo -e "${YELLOW}Note: Self-contained app not yet deployed to /opt/terrarium${NC}"
-    echo -e "${YELLOW}Build and deploy the self-contained app before starting the service${NC}"
+    echo -e "${YELLOW}Note: No runnable app found at /opt/terrarium${NC}"
+    echo -e "${YELLOW}Deploy either Python web-app files or the self-contained C# binary before starting the service${NC}"
 fi
 
 echo -e "${GREEN}=== Setup Complete ===${NC}"
