@@ -154,32 +154,6 @@
                 <div class="info-text">Use Auto detect (recommended). For Raspberry Pi 5 you can force gpiochip4. For older boards you can force gpiochip0.</div>
             </section>
 
-            <!-- Sensor GPIO Configuration -->
-            <section class="settings-section">
-                <h2>Sensor GPIO (BOARD)</h2>
-                <div class="gpio-grid">
-                    <div class="setting-group">
-                        <label>
-                            Sensor 1 GPIO:
-                            <input type="number" @bind="CurrentSettings.Sensor1GPIO" />
-                        </label>
-                    </div>
-                    <div class="setting-group">
-                        <label>
-                            Sensor 2 GPIO:
-                            <input type="number" @bind="CurrentSettings.Sensor2GPIO" />
-                        </label>
-                    </div>
-                    <div class="setting-group">
-                        <label>
-                            Sensor 3 GPIO:
-                            <input type="number" @bind="CurrentSettings.Sensor3GPIO" />
-                        </label>
-                    </div>
-                </div>
-                <div class="info-text">Use BOARD numbering for sensor inputs.</div>
-            </section>
-
             <!-- Relay GPIO Configuration -->
             <section class="settings-section">
                 <h2>Relay GPIO (BOARD)</h2>
@@ -703,14 +677,7 @@
             CurrentSettings.Relay6GPIO
         };
 
-        var sensorPins = new[]
-        {
-            CurrentSettings.Sensor1GPIO,
-            CurrentSettings.Sensor2GPIO,
-            CurrentSettings.Sensor3GPIO
-        };
-
-        if (relayPins.Any(pin => pin <= 0) || sensorPins.Any(pin => pin <= 0))
+        if (relayPins.Any(pin => pin <= 0))
         {
             errors.Add("All GPIO pins must be greater than zero.");
         }
@@ -718,11 +685,6 @@
         if (relayPins.Distinct().Count() != relayPins.Length)
         {
             errors.Add("Relay GPIO pins must be unique.");
-        }
-
-        if (sensorPins.Distinct().Count() != sensorPins.Length)
-        {
-            errors.Add("Sensor GPIO pins must be unique.");
         }
 
         if (CurrentSettings.LinuxGpioChip < -1)

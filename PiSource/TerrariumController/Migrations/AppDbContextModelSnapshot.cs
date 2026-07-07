@@ -209,17 +209,8 @@ namespace TerrariumController.Migrations
                     b.Property<int>("Relay6GPIO")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Sensor1GPIO")
-                        .HasColumnType("INTEGER");
-
                     b.Property<double>("Sensor1HumidityThreshold")
                         .HasColumnType("REAL");
-
-                    b.Property<int>("Sensor2GPIO")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Sensor3GPIO")
-                        .HasColumnType("INTEGER");
 
                     b.Property<double>("TemperatureHysteresis")
                         .HasColumnType("REAL");
@@ -256,10 +247,7 @@ namespace TerrariumController.Migrations
                             Relay4OnTime = "08:00",
                             Relay5GPIO = 37,
                             Relay6GPIO = 40,
-                            Sensor1GPIO = 16,
                             Sensor1HumidityThreshold = 60.0,
-                            Sensor2GPIO = 15,
-                            Sensor3GPIO = 22,
                             TemperatureHysteresis = 1.0,
                             Threshold1Temperature = 29.0,
                             Threshold2Temperature = 29.0,

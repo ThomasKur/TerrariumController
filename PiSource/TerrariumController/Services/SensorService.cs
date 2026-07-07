@@ -327,10 +327,11 @@ namespace TerrariumController.Services
 
         private Dictionary<int, int> GetSensorGpioMap(Settings settings)
         {
+            _ = settings;
             var map = new Dictionary<int, int>();
-            AddConfiguredSensor(map, 1, settings.Sensor1GPIO);
-            AddConfiguredSensor(map, 2, settings.Sensor2GPIO);
-            AddConfiguredSensor(map, 3, settings.Sensor3GPIO);
+            AddConfiguredSensor(map, 1, 16);
+            AddConfiguredSensor(map, 2, 15);
+            AddConfiguredSensor(map, 3, 22);
 
             return map;
         }

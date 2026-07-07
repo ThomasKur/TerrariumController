@@ -30,11 +30,6 @@ namespace TerrariumController.Models
         public int Relay5GPIO { get; set; } = 37;
         public int Relay6GPIO { get; set; } = 40;
 
-        // Sensor GPIO Configuration (BOARD numbering)
-        public int Sensor1GPIO { get; set; } = 16;
-        public int Sensor2GPIO { get; set; } = 15;
-        public int Sensor3GPIO { get; set; } = 22;
-
         // Linux gpiochip device selection (-1 = auto-detect, 0/4/etc = force specific chip)
         public int LinuxGpioChip { get; set; } = -1;
 

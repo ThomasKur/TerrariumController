@@ -7,6 +7,7 @@ Type=simple
 User=terrarium
 Group=terrarium
 WorkingDirectory=/opt/terrarium-hw-sidecar
+EnvironmentFile=-/etc/terrarium/terrarium.env
 ExecStart=/bin/bash /opt/terrarium-hw-sidecar/run-sidecar.sh
 Restart=always
 RestartSec=3

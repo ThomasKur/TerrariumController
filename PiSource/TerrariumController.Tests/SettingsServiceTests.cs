@@ -127,22 +127,6 @@ public class SettingsServiceTests
     }
 
     // -------------------------------------------------------------------------
-    // Validation: duplicate sensor GPIO pins
-    // -------------------------------------------------------------------------
-
-    [Fact]
-    public async Task UpdateSettingsAsync_ThrowsOnDuplicateSensorGpioPins()
-    {
-        await using var context = CreateContext();
-        var service = CreateService(context, new ControlLoopSignal());
-        var settings = await service.GetSettingsAsync();
-        settings.Sensor1GPIO = 23;
-        settings.Sensor2GPIO = 23; // duplicate
-
-        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateSettingsAsync(settings));
-    }
-
-    // -------------------------------------------------------------------------
     // Validation: zero GPIO pins
     // -------------------------------------------------------------------------
 

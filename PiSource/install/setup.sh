@@ -178,6 +178,11 @@ if [ ! -f "$ENV_FILE" ]; then
 ASPNETCORE_URLS=http://0.0.0.0:5000
 ASPNETCORE_ENVIRONMENT=Production
 HardwareSidecar__Mode=PythonSidecar
+SENSOR_SOURCE=onboard_dht
+PICO_UART_PORT=/dev/serial0
+PICO_UART_BAUD=115200
+PICO_UART_TIMEOUT=1.0
+PICO_STALE_SECONDS=20
 CAMERA_WIDTH=1920
 CAMERA_HEIGHT=1080
 CAMERA_FPS=15
@@ -196,6 +201,31 @@ fi
 if ! grep -q '^HardwareSidecar__Mode=' "$ENV_FILE"; then
     echo 'HardwareSidecar__Mode=PythonSidecar' >> "$ENV_FILE"
     echo "Added HardwareSidecar__Mode=PythonSidecar to $ENV_FILE"
+fi
+
+if ! grep -q '^SENSOR_SOURCE=' "$ENV_FILE"; then
+    echo 'SENSOR_SOURCE=onboard_dht' >> "$ENV_FILE"
+    echo "Added SENSOR_SOURCE=onboard_dht to $ENV_FILE"
+fi
+
+if ! grep -q '^PICO_UART_PORT=' "$ENV_FILE"; then
+    echo 'PICO_UART_PORT=/dev/serial0' >> "$ENV_FILE"
+    echo "Added PICO_UART_PORT=/dev/serial0 to $ENV_FILE"
+fi
+
+if ! grep -q '^PICO_UART_BAUD=' "$ENV_FILE"; then
+    echo 'PICO_UART_BAUD=115200' >> "$ENV_FILE"
+    echo "Added PICO_UART_BAUD=115200 to $ENV_FILE"
+fi
+
+if ! grep -q '^PICO_UART_TIMEOUT=' "$ENV_FILE"; then
+    echo 'PICO_UART_TIMEOUT=1.0' >> "$ENV_FILE"
+    echo "Added PICO_UART_TIMEOUT=1.0 to $ENV_FILE"
+fi
+
+if ! grep -q '^PICO_STALE_SECONDS=' "$ENV_FILE"; then
+    echo 'PICO_STALE_SECONDS=20' >> "$ENV_FILE"
+    echo "Added PICO_STALE_SECONDS=20 to $ENV_FILE"
 fi
 
 # Create app launcher script to handle self-contained or framework-dependent deployments
