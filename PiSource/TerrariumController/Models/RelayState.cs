@@ -1,24 +1,18 @@
-using System.ComponentModel.DataAnnotations;
+namespace TerrariumController.Models;
 
-namespace TerrariumController.Models
+public sealed class RelayState
 {
-    public class RelayState
-    {
-        [Key]
-        public int Id { get; set; }
+    public int Id { get; set; }
 
-        public int RelayId { get; set; } // 1-6
+    public DateTime TimestampUtc { get; set; }
 
-        public DateTime Timestamp { get; set; }
+    public int RelayId { get; set; }
 
-        public bool State { get; set; } // true = on, false = off
+    public bool IsOn { get; set; }
 
-        public string? TriggerSource { get; set; } // e.g., "Sensor 1 Temperature", "Scheduler", "Manual"
+    public string? TriggerSource { get; set; }
 
-        public int? SourceSensorId { get; set; } // Which sensor triggered this change
+    public decimal? TemperatureC { get; set; }
 
-        public double? SensorTemperature { get; set; } // Temperature at trigger time
-
-        public double? SensorHumidity { get; set; } // Humidity at trigger time
-    }
+    public decimal? HumidityPercent { get; set; }
 }

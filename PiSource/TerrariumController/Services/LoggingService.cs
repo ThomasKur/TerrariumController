@@ -1,149 +1,104 @@
+using Microsoft.EntityFrameworkCore;
 using TerrariumController.Data;
 using TerrariumController.Models;
-using Microsoft.EntityFrameworkCore;
 
-namespace TerrariumController.Services
+namespace TerrariumController.Services;
+
+public sealed class LoggingService : ILoggingService
 {
-    public interface ILoggingService
+    private readonly AppDbContext _dbContext;
+
+    public LoggingService(AppDbContext dbContext)
     {
-        Task LogRelayStateChangeAsync(int relayId, bool newState, string triggerSource, 
-            int? sensorId = null, double? temperature = null, double? humidity = null);
-        Task LogHourlySnapshotAsync(Dictionary<int, (double? temp, double? humidity)> sensorReadings);
-        Task PruneOldEntriesAsync();
-        Task<List<LogEntry>> GetLogEntriesAsync(int pageNumber, int pageSize);
-        Task<int> GetLogCountAsync();
+        _dbContext = dbContext;
     }
 
-    public class LoggingService : ILoggingService
+    public async Task LogRelayChangeAsync(RelayState relayState, CancellationToken cancellationToken = default)
     {
-        private readonly AppDbContext _context;
-        private readonly ILogger<LoggingService> _logger;
-        private readonly ISettingsService _settingsService;
-
-        public LoggingService(AppDbContext context, ILogger<LoggingService> logger, ISettingsService settingsService)
+        _dbContext.RelayStates.Add(relayState);
+        _dbContext.LogEntries.Add(new LogEntry
         {
-            _context = context;
-            _logger = logger;
-            _settingsService = settingsService;
+            TimestampUtc = relayState.TimestampUtc,
+            EntryType = "relay-change",
+            RelayId = relayState.RelayId,
+            Details = $"Relay {relayState.RelayId} => {(relayState.IsOn ? "On" : "Off")} ({relayState.TriggerSource})",
+            SensorId = null
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task LogHourlySnapshotAsync(IReadOnlyList<LiveSensorState> sensors, CancellationToken cancellationToken = default)
+    {
+        var snapshot = string.Join(", ",
+            sensors.OrderBy(item => item.SensorId)
+                .Select(item => $"S{item.SensorId}:T={item.TemperatureC?.ToString("0.0") ?? "n/a"}C RH={item.HumidityPercent?.ToString("0.0") ?? "n/a"}%"));
+
+        _dbContext.LogEntries.Add(new LogEntry
+        {
+            TimestampUtc = DateTime.UtcNow,
+            EntryType = "hourly-snapshot",
+            Details = snapshot,
+            SensorId = null,
+            RelayId = null
+        });
+
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<LogQueryResult> QueryAsync(LogQuery query, CancellationToken cancellationToken = default)
+    {
+        var pageSize = Math.Clamp(query.PageSize, 1, 500);
+        var page = Math.Max(1, query.Page);
+
+        var q = _dbContext.LogEntries.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(query.EntryType))
+        {
+            q = q.Where(item => item.EntryType == query.EntryType);
         }
 
-        public async Task LogRelayStateChangeAsync(int relayId, bool newState, string triggerSource,
-            int? sensorId = null, double? temperature = null, double? humidity = null)
+        if (query.RelayId.HasValue)
         {
-            try
-            {
-                var logEntry = new LogEntry
-                {
-                    Timestamp = DateTime.UtcNow,
-                    LogType = "StateChange",
-                    Details = $"Relay {relayId} turned {(newState ? "ON" : "OFF")} - Trigger: {triggerSource}",
-                    RelayId = relayId,
-                    RelayState = newState
-                };
-
-                // Store sensor values if provided
-                if (sensorId == 1)
-                {
-                    logEntry.Sensor1Temperature = temperature;
-                    logEntry.Sensor1Humidity = humidity;
-                }
-                else if (sensorId == 2)
-                {
-                    logEntry.Sensor2Temperature = temperature;
-                    logEntry.Sensor2Humidity = humidity;
-                }
-                else if (sensorId == 3)
-                {
-                    logEntry.Sensor3Temperature = temperature;
-                    logEntry.Sensor3Humidity = humidity;
-                }
-
-                _context.LogEntries.Add(logEntry);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation(logEntry.Details);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error logging relay state change for Relay {RelayId}", relayId);
-            }
+            q = q.Where(item => item.RelayId == query.RelayId.Value);
         }
 
-        public async Task LogHourlySnapshotAsync(Dictionary<int, (double? temp, double? humidity)> sensorReadings)
+        if (query.SensorId.HasValue)
         {
-            try
-            {
-                var logEntry = new LogEntry
-                {
-                    Timestamp = DateTime.UtcNow,
-                    LogType = "HourlySnapshot",
-                    Details = "Hourly sensor reading snapshot"
-                };
-
-                // Populate sensor data
-                if (sensorReadings.TryGetValue(1, out var sensor1))
-                {
-                    logEntry.Sensor1Temperature = sensor1.temp;
-                    logEntry.Sensor1Humidity = sensor1.humidity;
-                }
-                if (sensorReadings.TryGetValue(2, out var sensor2))
-                {
-                    logEntry.Sensor2Temperature = sensor2.temp;
-                    logEntry.Sensor2Humidity = sensor2.humidity;
-                }
-                if (sensorReadings.TryGetValue(3, out var sensor3))
-                {
-                    logEntry.Sensor3Temperature = sensor3.temp;
-                    logEntry.Sensor3Humidity = sensor3.humidity;
-                }
-
-                _context.LogEntries.Add(logEntry);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Hourly sensor snapshot logged");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error logging hourly snapshot");
-            }
+            q = q.Where(item => item.SensorId == query.SensorId.Value);
         }
 
-        public async Task PruneOldEntriesAsync()
+        var total = await q.CountAsync(cancellationToken).ConfigureAwait(false);
+        var entries = await q
+            .OrderByDescending(item => item.TimestampUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return new LogQueryResult
         {
-            try
-            {
-                var settings = await _settingsService.GetSettingsAsync();
-                var cutoffDate = DateTime.UtcNow.AddMonths(-settings.LogRetentionMonths);
+            Entries = entries,
+            TotalCount = total
+        };
+    }
 
-                var entriesToDelete = await _context.LogEntries
-                    .Where(le => le.Timestamp < cutoffDate)
-                    .ToListAsync();
+    public async Task PruneRetentionAsync(int retentionMonths, CancellationToken cancellationToken = default)
+    {
+        retentionMonths = Math.Clamp(retentionMonths, 1, 24);
+        var cutoff = DateTime.UtcNow.AddMonths(-retentionMonths);
 
-                if (entriesToDelete.Count > 0)
-                {
-                    _context.LogEntries.RemoveRange(entriesToDelete);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Pruned {Count} log entries older than {CutoffDate}", 
-                        entriesToDelete.Count, cutoffDate);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error pruning old log entries");
-            }
+        var staleLogs = await _dbContext.LogEntries
+            .Where(item => item.TimestampUtc < cutoff)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (staleLogs.Count == 0)
+        {
+            return;
         }
 
-        public async Task<List<LogEntry>> GetLogEntriesAsync(int pageNumber, int pageSize)
-        {
-            return await _context.LogEntries
-                .OrderByDescending(le => le.Timestamp)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .AsAsyncEnumerable()
-                .ToListAsync();
-        }
-
-        public async Task<int> GetLogCountAsync()
-        {
-            return await _context.LogEntries.AsAsyncEnumerable().CountAsync();
-        }
+        _dbContext.LogEntries.RemoveRange(staleLogs);
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 }

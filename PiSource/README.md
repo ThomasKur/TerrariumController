@@ -1,6 +1,6 @@
 # TerrariumController Development
 
-This is the source folder for the Blazor Server application.
+This folder contains the rebuilt Raspberry Pi-side Blazor Server application.
 
 ## Build Requirements
 
@@ -11,68 +11,58 @@ This is the source folder for the Blazor Server application.
 ## Project Structure
 
 ```
-TerrariumController/
-├── TerrariumController.csproj       # Project file with dependencies
-├── Program.cs                        # Service registration and app setup
-├── appsettings.json                 # Configuration
-├── appsettings.Development.json      # Development overrides
-├── Data/
-│   ├── AppDbContext.cs              # Entity Framework Core database context
-│   └── Migrations/                  # EF Core migrations folder
-├── Models/
-│   ├── SensorReading.cs
-│   ├── RelayState.cs
-│   ├── LogEntry.cs
-│   ├── Settings.cs
-│   └── HumidityLockoutState.cs
-├── Services/
-│   ├── ISettingsService.cs          # Interfaces and implementations
-│   ├── SettingsService.cs
-│   ├── ILoggingService.cs
-│   ├── LoggingService.cs
-│   ├── ISensorService.cs
-│   ├── SensorService.cs
-│   ├── IRelayService.cs
-│   ├── RelayService.cs
-│   ├── ISchedulerService.cs
-│   ├── SchedulerService.cs
-│   ├── IHumidityService.cs
-│   └── HumidityService.cs
-├── Components/
-│   ├── App.razor                    # Root component
-│   ├── Layout/
-│   │   └── MainLayout.razor         # App shell
-│   ├── Pages/
-│   │   ├── Home.razor               # Dashboard (2 rows)
-│   │   ├── Settings.razor           # TODO: Settings page
-│   │   └── LogHistory.razor         # TODO: Log history page
-│   └── Shared/
-│       └── ...                       # TODO: Shared UI components
-├── wwwroot/
-│   ├── css/
-│   │   ├── app.css
-│   │   └── site.css
-│   └── js/
-│       └── site.js
-└── Properties/
-    └── launchSettings.json          # Debug launch config
+PiSource/
+├── PiSource.sln
+├── TerrariumController/
+│   ├── TerrariumController.csproj
+│   ├── Program.cs
+│   ├── appsettings.json
+│   ├── Data/
+│   │   └── AppDbContext.cs
+│   ├── Models/
+│   ├── Services/
+│   │   ├── ControlBackgroundService.cs
+│   │   ├── SensorService.cs
+│   │   ├── RelayService.cs
+│   │   ├── SchedulerService.cs
+│   │   ├── HumidityService.cs
+│   │   ├── LoggingService.cs
+│   │   └── SettingsService.cs
+│   ├── Components/
+│   │   ├── Pages/
+│   │   │   ├── Home.razor
+│   │   │   ├── Settings.razor
+│   │   │   └── LogHistory.razor
+│   │   └── Shared/
+│   │       ├── SensorRow.razor
+│   │       ├── DaylightScheduler.razor
+│   │       └── CameraFeed.razor
+│   └── wwwroot/css/site.css
+├── TerrariumController.Tests/
+│   ├── TerrariumController.Tests.csproj
+│   ├── TemperatureControlPolicyTests.cs
+│   └── SchedulerServiceTests.cs
+└── install/
+  ├── build-for-pi.ps1
+  ├── setup.sh
+  └── terrarium.service
 ```
 
 ## Build & Run
 
 ### Restore dependencies
 ```bash
-dotnet restore
+dotnet restore PiSource.sln
 ```
 
 ### Build
 ```bash
-dotnet build
+dotnet build PiSource.sln --configuration Release
 ```
 
 ### Run for development
 ```bash
-dotnet run
+dotnet run --project TerrariumController/TerrariumController.csproj
 ```
 Access at `https://localhost:7000` or `http://localhost:5000` (depending on launchSettings.json).
 
@@ -80,9 +70,19 @@ The app will create a SQLite database in the current directory: `terrarium.db`
 
 ### Publish for Raspberry Pi
 ```bash
-dotnet publish -c Release -o ./publish
+dotnet publish TerrariumController/TerrariumController.csproj -c Release -o ../publish
 ```
 Copy the contents of `publish/` to `/opt/terrarium/` on the Pi.
+
+### Build using repo script
+```powershell
+pwsh -File PiSource/install/build-for-pi.ps1
+```
+
+### Run tests
+```bash
+dotnet test PiSource.sln --configuration Release
+```
 
 ## Migrations
 
@@ -104,18 +104,16 @@ dotnet ef database update
 - Provides database size and compact (VACUUM) functionality
 
 ### SensorService
-- **Mock implementation**: Returns fixed sensor values
-- **Real implementation**: Read DHT22 via `Iot.Device.DHTxx` on GPIO 23/24/25
-- Stores readings in database with validity flag
+- Generates mock sensor data by default for development and stores readings in SQLite
+- Tracks latest values for all three sensors in memory for UI refresh
 
 ### RelayService
-- Controls relay on/off via GPIO
+- Controls relay state transitions and logs each state change
 - Implements 1°C hysteresis logic to prevent rapid switching
-- Logs all state changes with trigger source
+- Supports pulse execution for Relay 5 humidity behavior
 
 ### SchedulerService
-- Manages Relay 4 (daylight) on/off schedule
-- Runs in background, checks time and applies schedule
+- Manages Relay 4 (daylight) on/off schedule, including overnight windows
 
 ### HumidityService
 - Monitors Sensor 1 humidity against threshold
@@ -128,20 +126,25 @@ dotnet ef database update
 - Prunes entries older than configurable retention (1-24 months, default 12)
 - Provides paginated log history
 
+### ControlBackgroundService
+- Runs the control loop in the background
+- Polls sensors, applies temperature relay decisions, applies daylight scheduler, evaluates humidity lockout, writes hourly snapshots, and prunes retention
+
 ## Testing
 
-Currently, services use mock implementations (especially SensorService). To test:
+To test end-to-end:
 
 1. Run the app locally: `dotnet run`
 2. Navigate to `https://localhost:7000`
 3. Adjust thresholds, schedules, and camera params in settings
 4. View logs in the Log History page
 5. Compact the database via Settings page
+6. Run `dotnet test PiSource.sln --configuration Release`
 
 On actual Raspberry Pi hardware:
-- Replace mock sensor code with real DHT22 reads
-- GPIO control will auto-enable (currently stubbed)
-- Camera feed will work if mjpg-streamer is running
+- Replace mock sensor reads with UART or direct GPIO sensor reads in `SensorService`
+- Integrate real GPIO writes in `RelayService`
+- Point `CameraUrl` setting to the active MJPEG endpoint
 
 ## Common Issues
 
@@ -175,13 +178,12 @@ dotnet tool install --global dotnet-ef --version 10.0.0
 - Follow async/await patterns throughout
 - Add unit tests for service logic when possible
 
-## Future Enhancements
+## Current Status
 
-- [ ] Real DHT22 sensor integration
-- [ ] GPIO relay control implementation
-- [ ] SignalR hubs for real-time sensor updates
-- [ ] Blazor Settings and LogHistory pages
-- [ ] Background hosted services for polling and scheduling
-- [ ] mjpg-streamer integration
-- [ ] Unit tests for services
-- [ ] API endpoints for remote access (optional)
+- [x] Blazor Server app skeleton and pages
+- [x] SQLite models and persistence context
+- [x] Background control loop with hysteresis, scheduler, and humidity lockout
+- [x] Filterable log history and retention pruning
+- [x] Settings persistence and DB compact action
+- [x] Build and install scripts under `install/`
+- [x] Core logic unit tests for hysteresis and scheduler

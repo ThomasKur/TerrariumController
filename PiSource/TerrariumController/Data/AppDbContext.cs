@@ -1,62 +1,59 @@
 using Microsoft.EntityFrameworkCore;
 using TerrariumController.Models;
 
-namespace TerrariumController.Data
+namespace TerrariumController.Data;
+
+public sealed class AppDbContext : DbContext
 {
-    public class AppDbContext : DbContext
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
     {
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    }
+
+    public DbSet<SensorReading> SensorReadings => Set<SensorReading>();
+
+    public DbSet<RelayState> RelayStates => Set<RelayState>();
+
+    public DbSet<LogEntry> LogEntries => Set<LogEntry>();
+
+    public DbSet<Settings> Settings => Set<Settings>();
+
+    public DbSet<HumidityLockoutState> HumidityLockoutStates => Set<HumidityLockoutState>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SensorReading>(entity =>
         {
-        }
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.SensorId, item.TimestampUtc });
+        });
 
-        public DbSet<SensorReading> SensorReadings { get; set; } = default!;
-        public DbSet<RelayState> RelayStates { get; set; } = default!;
-        public DbSet<LogEntry> LogEntries { get; set; } = default!;
-        public DbSet<Settings> Settings { get; set; } = default!;
-        public DbSet<HumidityLockoutState> HumidityLockoutStates { get; set; } = default!;
-
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        modelBuilder.Entity<RelayState>(entity =>
         {
-            base.OnModelCreating(modelBuilder);
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => new { item.RelayId, item.TimestampUtc });
+        });
 
-            // Configure table properties
-            modelBuilder.Entity<SensorReading>()
-                .HasIndex(sr => sr.Timestamp)
-                .IsDescending();
+        modelBuilder.Entity<LogEntry>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => item.TimestampUtc);
+        });
 
-            modelBuilder.Entity<RelayState>()
-                .HasIndex(rs => rs.Timestamp)
-                .IsDescending();
+        modelBuilder.Entity<Settings>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.CameraUrl).HasMaxLength(256);
+            entity.HasData(new Settings
+            {
+                Id = 1
+            });
+        });
 
-            modelBuilder.Entity<LogEntry>()
-                .HasIndex(le => le.Timestamp)
-                .IsDescending();
-
-            modelBuilder.Entity<Settings>()
-                .HasData(new Settings
-                {
-                    Id = 1,
-                    Threshold1Temperature = 29.0,
-                    Threshold2Temperature = 29.0,
-                    Threshold3Temperature = 29.0,
-                    Sensor1HumidityThreshold = 60.0,
-                    TemperatureHysteresis = 1.0,
-                    Relay4OnTime = "08:00",
-                    Relay4OffTime = "20:00",
-                    Relay1GPIO = 29,
-                    Relay2GPIO = 31,
-                    Relay3GPIO = 33,
-                    Relay4GPIO = 35,
-                    Relay5GPIO = 37,
-                    Relay6GPIO = 40,
-                    LinuxGpioChip = -1,
-                    CameraWidth = 1280,
-                    CameraHeight = 720,
-                    CameraFramerate = 15,
-                    LogRetentionMonths = 12,
-                    HumidityLockoutHours = 6,
-                    LastModified = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                });
-        }
+        modelBuilder.Entity<HumidityLockoutState>(entity =>
+        {
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => item.SensorId).IsUnique();
+        });
     }
 }

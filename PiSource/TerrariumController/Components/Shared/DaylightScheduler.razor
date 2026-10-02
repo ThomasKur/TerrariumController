@@ -1,0 +1,66 @@
+<article class="panel">
+    <h3>Daylight Scheduler (Relay 4)</h3>
+
+    <div class="form-row">
+        <label>On time</label>
+        <input type="time" value="@OnTime" @onchange="OnOnTimeChanged" />
+    </div>
+
+    <div class="form-row">
+        <label>Off time</label>
+        <input type="time" value="@OffTime" @onchange="OnOffTimeChanged" />
+    </div>
+
+    <p class="small-muted">Current relay state: @(RelayState?.IsOn == true ? "On" : "Off")</p>
+</article>
+
+@code {
+    [Parameter]
+    public int DaylightOnMinutes { get; set; }
+
+    [Parameter]
+    public int DaylightOffMinutes { get; set; }
+
+    [Parameter]
+    public LiveRelayState? RelayState { get; set; }
+
+    [Parameter]
+    public EventCallback<int> DaylightOnChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<int> DaylightOffChanged { get; set; }
+
+    private string OnTime => ToTimeString(DaylightOnMinutes);
+
+    private string OffTime => ToTimeString(DaylightOffMinutes);
+
+    private Task OnOnTimeChanged(ChangeEventArgs args)
+    {
+        var value = ParseMinutes(args.Value?.ToString());
+        return DaylightOnChanged.InvokeAsync(value);
+    }
+
+    private Task OnOffTimeChanged(ChangeEventArgs args)
+    {
+        var value = ParseMinutes(args.Value?.ToString());
+        return DaylightOffChanged.InvokeAsync(value);
+    }
+
+    private static string ToTimeString(int minutes)
+    {
+        minutes = Math.Clamp(minutes, 0, 1439);
+        var hour = minutes / 60;
+        var minute = minutes % 60;
+        return $"{hour:D2}:{minute:D2}";
+    }
+
+    private static int ParseMinutes(string? value)
+    {
+        if (TimeOnly.TryParse(value, out var parsed))
+        {
+            return parsed.Hour * 60 + parsed.Minute;
+        }
+
+        return 0;
+    }
+}

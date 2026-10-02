@@ -1,0 +1,82 @@
+<article class="panel sensor-row">
+    <header class="sensor-head">
+        <h3>@Title</h3>
+        <span class="status-pill @(Sensor?.IsValid == true ? "ok" : "bad")">
+            @(Sensor?.IsValid == true ? "Online" : "No Data")
+        </span>
+    </header>
+
+    <div class="sensor-values">
+        <div>
+            <span class="label">Temperature</span>
+            <p>@(Sensor?.TemperatureC?.ToString("0.0") ?? "n/a") C</p>
+        </div>
+        <div>
+            <span class="label">Humidity</span>
+            <p>@(Sensor?.HumidityPercent?.ToString("0.0") ?? "n/a") %</p>
+        </div>
+        <div>
+            <span class="label">Relay</span>
+            <p>@(RelayState?.IsOn == true ? "On" : "Off")</p>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label>Temperature threshold (@TemperatureThresholdC.ToString("0.0") C)</label>
+        <input type="range" min="10" max="45" step="0.5" value="@TemperatureThresholdC" @oninput="OnTemperatureChanged" />
+    </div>
+
+    @if (ShowHumidityThreshold)
+    {
+        <div class="form-row">
+            <label>Humidity threshold (@HumidityThresholdPercent.ToString("0.0") %)</label>
+            <input type="range" min="1" max="100" step="1" value="@HumidityThresholdPercent" @oninput="OnHumidityChanged" />
+        </div>
+    }
+</article>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public LiveSensorState? Sensor { get; set; }
+
+    [Parameter]
+    public LiveRelayState? RelayState { get; set; }
+
+    [Parameter]
+    public decimal TemperatureThresholdC { get; set; }
+
+    [Parameter]
+    public decimal HumidityThresholdPercent { get; set; }
+
+    [Parameter]
+    public bool ShowHumidityThreshold { get; set; }
+
+    [Parameter]
+    public EventCallback<decimal> TemperatureThresholdChanged { get; set; }
+
+    [Parameter]
+    public EventCallback<decimal> HumidityThresholdChanged { get; set; }
+
+    private Task OnTemperatureChanged(ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var value))
+        {
+            return TemperatureThresholdChanged.InvokeAsync(value);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OnHumidityChanged(ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var value))
+        {
+            return HumidityThresholdChanged.InvokeAsync(value);
+        }
+
+        return Task.CompletedTask;
+    }
+}

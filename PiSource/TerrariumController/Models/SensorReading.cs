@@ -1,22 +1,18 @@
-using System.ComponentModel.DataAnnotations;
+namespace TerrariumController.Models;
 
-namespace TerrariumController.Models
+public sealed class SensorReading
 {
-    public class SensorReading
-    {
-        [Key]
-        public int Id { get; set; }
+    public int Id { get; set; }
 
-        public int SensorId { get; set; } // 1, 2, or 3
+    public DateTime TimestampUtc { get; set; }
 
-        public DateTime Timestamp { get; set; }
+    public int SensorId { get; set; }
 
-        public double? Temperature { get; set; } // Celsius
+    public decimal? TemperatureC { get; set; }
 
-        public double? Humidity { get; set; } // Percentage
+    public decimal? HumidityPercent { get; set; }
 
-        public bool IsValid { get; set; } // True if sensor data is valid
+    public bool IsValid { get; set; }
 
-        public string? Label { get; set; } // "Nest 1", "Nest 2", "Arena"
-    }
+    public string? Source { get; set; }
 }

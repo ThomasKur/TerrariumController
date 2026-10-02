@@ -1,150 +1,83 @@
+using Microsoft.EntityFrameworkCore;
 using TerrariumController.Data;
 using TerrariumController.Models;
-using Microsoft.EntityFrameworkCore;
 
-namespace TerrariumController.Services
+namespace TerrariumController.Services;
+
+public sealed class SettingsService : ISettingsService
 {
-    public interface ISettingsService
+    private const int SettingsRowId = 1;
+    private readonly AppDbContext _dbContext;
+
+    public SettingsService(AppDbContext dbContext)
     {
-        Task<Settings> GetSettingsAsync();
-        Task UpdateSettingsAsync(Settings settings);
-        Task<long> GetDatabaseSizeAsync();
-        Task CompactDatabaseAsync();
+        _dbContext = dbContext;
     }
 
-    public class SettingsService : ISettingsService
+    public async Task<Settings> GetAsync(CancellationToken cancellationToken = default)
     {
-        private readonly AppDbContext _context;
-        private readonly ILogger<SettingsService> _logger;
-        private readonly IControlLoopSignal _controlLoopSignal;
+        var settings = await _dbContext.Settings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == SettingsRowId, cancellationToken)
+            .ConfigureAwait(false);
 
-        public SettingsService(AppDbContext context, ILogger<SettingsService> logger, IControlLoopSignal controlLoopSignal)
+        if (settings is not null)
         {
-            _context = context;
-            _logger = logger;
-            _controlLoopSignal = controlLoopSignal;
-        }
-
-        public async Task<Settings> GetSettingsAsync()
-        {
-            var settings = await _context.Settings.FirstOrDefaultAsync();
-            if (settings == null)
-            {
-                settings = new Settings();
-                _context.Settings.Add(settings);
-                await _context.SaveChangesAsync();
-            }
             return settings;
         }
 
-        public async Task UpdateSettingsAsync(Settings settings)
-        {
-            ValidateSettings(settings);
+        settings = new Settings { Id = SettingsRowId };
+        _dbContext.Settings.Add(settings);
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-            settings.LastModified = DateTime.UtcNow;
-            _context.Settings.Update(settings);
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("Settings updated at {Timestamp}", DateTime.UtcNow);
-            _logger.LogInformation(
-                "Effective settings snapshot: T1={T1:F1}, T2={T2:F1}, T3={T3:F1}, Hysteresis={Hysteresis:F1}, RH1={RH1:F1}, Relay4On={Relay4On}, Relay4Off={Relay4Off}, LockoutHours={LockoutHours}, RelayPins={RelayPins}, LinuxGpioChip={LinuxGpioChip}",
-                settings.Threshold1Temperature,
-                settings.Threshold2Temperature,
-                settings.Threshold3Temperature,
-                settings.TemperatureHysteresis,
-                settings.Sensor1HumidityThreshold,
-                settings.Relay4OnTime,
-                settings.Relay4OffTime,
-                settings.HumidityLockoutHours,
-                string.Join(",", new[] { settings.Relay1GPIO, settings.Relay2GPIO, settings.Relay3GPIO, settings.Relay4GPIO, settings.Relay5GPIO, settings.Relay6GPIO }),
-                settings.LinuxGpioChip);
-            _controlLoopSignal.RequestImmediateEvaluation("Settings updated");
+        return settings;
+    }
+
+    public async Task UpdateAsync(Settings settings, CancellationToken cancellationToken = default)
+    {
+        settings.Id = SettingsRowId;
+        settings.RetentionMonths = Math.Clamp(settings.RetentionMonths, 1, 24);
+        settings.HysteresisC = Math.Clamp(settings.HysteresisC, 0.1m, 5m);
+        settings.Sensor1TemperatureThresholdC = Math.Clamp(settings.Sensor1TemperatureThresholdC, 10m, 45m);
+        settings.Sensor2TemperatureThresholdC = Math.Clamp(settings.Sensor2TemperatureThresholdC, 10m, 45m);
+        settings.Sensor3TemperatureThresholdC = Math.Clamp(settings.Sensor3TemperatureThresholdC, 10m, 45m);
+        settings.Sensor1HumidityThresholdPercent = Math.Clamp(settings.Sensor1HumidityThresholdPercent, 1m, 100m);
+        settings.PollIntervalSeconds = Math.Clamp(settings.PollIntervalSeconds, 1, 60);
+        settings.HumidityPulseSeconds = Math.Clamp(settings.HumidityPulseSeconds, 1, 30);
+        settings.HumidityLockoutHours = Math.Clamp(settings.HumidityLockoutHours, 1, 24);
+        settings.DaylightOnMinutes = Math.Clamp(settings.DaylightOnMinutes, 0, 1439);
+        settings.DaylightOffMinutes = Math.Clamp(settings.DaylightOffMinutes, 0, 1439);
+        settings.CameraWidth = Math.Clamp(settings.CameraWidth, 320, 3840);
+        settings.CameraHeight = Math.Clamp(settings.CameraHeight, 240, 2160);
+        settings.CameraFps = Math.Clamp(settings.CameraFps, 1, 60);
+
+        var existingSettings = await _dbContext.Settings
+            .SingleOrDefaultAsync(item => item.Id == SettingsRowId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (existingSettings is null)
+        {
+            _dbContext.Settings.Add(settings);
+        }
+        else
+        {
+            _dbContext.Entry(existingSettings).CurrentValues.SetValues(settings);
         }
 
-        private static void ValidateSettings(Settings settings)
-        {
-            if (settings.TemperatureHysteresis <= 0 || settings.TemperatureHysteresis > 5)
-            {
-                throw new ArgumentOutOfRangeException(nameof(settings.TemperatureHysteresis), "Temperature hysteresis must be between 0 and 5 C.");
-            }
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
 
-            ValidateThreshold(settings.Threshold1Temperature, nameof(settings.Threshold1Temperature));
-            ValidateThreshold(settings.Threshold2Temperature, nameof(settings.Threshold2Temperature));
-            ValidateThreshold(settings.Threshold3Temperature, nameof(settings.Threshold3Temperature));
+    public Task<long> GetDatabaseSizeBytesAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
 
-            if (settings.Sensor1HumidityThreshold < 20 || settings.Sensor1HumidityThreshold > 100)
-            {
-                throw new ArgumentOutOfRangeException(nameof(settings.Sensor1HumidityThreshold), "Humidity threshold must be between 20 and 100.");
-            }
+        var dbPath = _dbContext.Database.GetDbConnection().DataSource;
+        var file = new FileInfo(dbPath);
+        return Task.FromResult(file.Exists ? file.Length : 0L);
+    }
 
-            if (!TimeSpan.TryParse(settings.Relay4OnTime, out _) || !TimeSpan.TryParse(settings.Relay4OffTime, out _))
-            {
-                throw new ArgumentException("Relay 4 schedule must use HH:mm time format.");
-            }
-
-            var relayPins = new[]
-            {
-                settings.Relay1GPIO,
-                settings.Relay2GPIO,
-                settings.Relay3GPIO,
-                settings.Relay4GPIO,
-                settings.Relay5GPIO,
-                settings.Relay6GPIO
-            };
-
-            if (relayPins.Any(pin => pin <= 0))
-            {
-                throw new ArgumentOutOfRangeException(nameof(settings), "GPIO pins must be greater than zero.");
-            }
-
-            if (relayPins.Distinct().Count() != relayPins.Length)
-            {
-                throw new ArgumentException("Relay GPIO pins must be unique.");
-            }
-
-            if (settings.LinuxGpioChip < -1)
-            {
-                throw new ArgumentOutOfRangeException(nameof(settings.LinuxGpioChip), "Linux GPIO chip must be -1 (auto) or a non-negative chip id.");
-            }
-        }
-
-        private static void ValidateThreshold(double threshold, string fieldName)
-        {
-            if (threshold < 5 || threshold > 60)
-            {
-                throw new ArgumentOutOfRangeException(fieldName, "Temperature thresholds must be between 5 and 60 C.");
-            }
-        }
-
-        public async Task<long> GetDatabaseSizeAsync()
-        {
-            try
-            {
-                var connection = _context.Database.GetDbConnection();
-                if (connection.DataSource != null && File.Exists(connection.DataSource))
-                {
-                    var fileInfo = new FileInfo(connection.DataSource);
-                    return fileInfo.Length;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting database size");
-            }
-            return 0;
-        }
-
-        public async Task CompactDatabaseAsync()
-        {
-            try
-            {
-                // SQLite VACUUM command compacts the database file
-                await _context.Database.ExecuteSqlRawAsync("VACUUM;");
-                _logger.LogInformation("Database compacted at {Timestamp}", DateTime.UtcNow);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error compacting database");
-            }
-        }
+    public async Task CompactDatabaseAsync(CancellationToken cancellationToken = default)
+    {
+        await _dbContext.Database.ExecuteSqlRawAsync("VACUUM;", cancellationToken).ConfigureAwait(false);
     }
 }

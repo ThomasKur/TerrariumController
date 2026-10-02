@@ -1,0 +1,120 @@
+@page "/settings"
+@inject ISettingsService SettingsService
+
+<section class="panel">
+    <p class="eyebrow">Settings</p>
+    <h2>System configuration</h2>
+
+    @if (_settings is null)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <div class="grid-2">
+            <div class="form-row">
+                <label>Log retention months (1-24)</label>
+                <input type="number" min="1" max="24" @bind="_settings.RetentionMonths" />
+            </div>
+
+            <div class="form-row">
+                <label>Polling interval seconds</label>
+                <input type="number" min="1" max="60" @bind="_settings.PollIntervalSeconds" />
+            </div>
+
+            <div class="form-row">
+                <label>Hysteresis (C)</label>
+                <input type="number" min="0.1" max="5" step="0.1" @bind="_settings.HysteresisC" />
+            </div>
+
+            <div class="form-row">
+                <label>Humidity pulse seconds (Relay 5)</label>
+                <input type="number" min="1" max="30" @bind="_settings.HumidityPulseSeconds" />
+            </div>
+
+            <div class="form-row">
+                <label>Humidity lockout hours</label>
+                <input type="number" min="1" max="24" @bind="_settings.HumidityLockoutHours" />
+            </div>
+
+            <div class="form-row">
+                <label>Camera URL</label>
+                <input type="text" @bind="_settings.CameraUrl" />
+            </div>
+
+            <div class="form-row">
+                <label>Camera width</label>
+                <input type="number" min="320" max="3840" @bind="_settings.CameraWidth" />
+            </div>
+
+            <div class="form-row">
+                <label>Camera height</label>
+                <input type="number" min="240" max="2160" @bind="_settings.CameraHeight" />
+            </div>
+
+            <div class="form-row">
+                <label>Camera fps</label>
+                <input type="number" min="1" max="60" @bind="_settings.CameraFps" />
+            </div>
+
+            <div class="form-row">
+                <label>Use mock sensors</label>
+                <input type="checkbox" @bind="_settings.UseMockSensors" />
+            </div>
+
+            <div class="form-row">
+                <label>Use mock relays</label>
+                <input type="checkbox" @bind="_settings.UseMockRelays" />
+            </div>
+        </div>
+
+        <div class="actions-row">
+            <button class="btn-primary" @onclick="SaveAsync">Save Settings</button>
+            <button @onclick="CompactAsync">Compact Database</button>
+        </div>
+
+        <p class="small-muted">Database size: @_databaseSizeText</p>
+        @if (!string.IsNullOrWhiteSpace(_statusMessage))
+        {
+            <p class="small-muted">@_statusMessage</p>
+        }
+    }
+</section>
+
+@code {
+    private TerrariumController.Models.Settings? _settings;
+    private string _statusMessage = string.Empty;
+    private string _databaseSizeText = "-";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await SettingsService.GetAsync();
+        await UpdateDbSizeTextAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_settings is null)
+        {
+            return;
+        }
+
+        await SettingsService.UpdateAsync(_settings);
+        await UpdateDbSizeTextAsync();
+        _statusMessage = $"Saved at {DateTime.Now:HH:mm:ss}";
+    }
+
+    private async Task CompactAsync()
+    {
+        await SettingsService.CompactDatabaseAsync();
+        await UpdateDbSizeTextAsync();
+        _statusMessage = $"Compacted at {DateTime.Now:HH:mm:ss}";
+    }
+
+    private async Task UpdateDbSizeTextAsync()
+    {
+        var bytes = await SettingsService.GetDatabaseSizeBytesAsync();
+        var mb = bytes / 1024d / 1024d;
+        _databaseSizeText = $"{mb:0.00} MB ({bytes} bytes)";
+    }
+}

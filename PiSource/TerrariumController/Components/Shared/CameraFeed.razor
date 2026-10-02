@@ -1,0 +1,19 @@
+<article class="panel">
+    <header class="sensor-head">
+        <h3>Camera Feed</h3>
+    </header>
+
+    @if (string.IsNullOrWhiteSpace(StreamUrl))
+    {
+        <p class="small-muted">No camera URL configured.</p>
+    }
+    else
+    {
+        <img class="camera-feed" src="@StreamUrl" alt="Terrarium camera stream" />
+    }
+</article>
+
+@code {
+    [Parameter]
+    public string StreamUrl { get; set; } = string.Empty;
+}

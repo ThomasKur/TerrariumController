@@ -1,50 +1,60 @@
-using System.ComponentModel.DataAnnotations;
+namespace TerrariumController.Models;
 
-namespace TerrariumController.Models
+public sealed class Settings
 {
-    public class Settings
-    {
-        [Key]
-        public int Id { get; set; }
+    public int Id { get; set; } = 1;
 
-        // Temperature Thresholds (per sensor/relay)
-        public double Threshold1Temperature { get; set; } = 29.0; // Relay 1
-        public double Threshold2Temperature { get; set; } = 29.0; // Relay 2
-        public double Threshold3Temperature { get; set; } = 29.0; // Relay 3
+    public decimal Sensor1TemperatureThresholdC { get; set; } = 29;
 
-        // Humidity threshold for Sensor 1 (triggers Relay 5)
-        public double Sensor1HumidityThreshold { get; set; } = 60.0;
+    public decimal Sensor2TemperatureThresholdC { get; set; } = 29;
 
-        // Hysteresis (1°C)
-        public double TemperatureHysteresis { get; set; } = 1.0;
+    public decimal Sensor3TemperatureThresholdC { get; set; } = 29;
 
-        // Relay 4 daylight scheduler
-        public string Relay4OnTime { get; set; } = "08:00"; // HH:mm format
-        public string Relay4OffTime { get; set; } = "20:00";
+    public decimal Sensor1HumidityThresholdPercent { get; set; } = 60;
 
-        // GPIO Configuration (BOARD numbering)
-        public int Relay1GPIO { get; set; } = 29;
-        public int Relay2GPIO { get; set; } = 31;
-        public int Relay3GPIO { get; set; } = 33;
-        public int Relay4GPIO { get; set; } = 35;
-        public int Relay5GPIO { get; set; } = 37;
-        public int Relay6GPIO { get; set; } = 40;
+    public int Sensor1GpioBcm { get; set; } = 23;
 
-        // Linux gpiochip device selection (-1 = auto-detect, 0/4/etc = force specific chip)
-        public int LinuxGpioChip { get; set; } = -1;
+    public int Sensor2GpioBcm { get; set; } = 22;
 
-        // Camera settings
-        public int CameraWidth { get; set; } = 1280;
-        public int CameraHeight { get; set; } = 720;
-        public int CameraFramerate { get; set; } = 15;
+    public int Sensor3GpioBcm { get; set; } = 25;
 
-        // Log retention in months
-        public int LogRetentionMonths { get; set; } = 12;
+    public int Relay1GpioBcm { get; set; } = 5;
 
-        // Humidity lockout duration (6 hours)
-        public int HumidityLockoutHours { get; set; } = 6;
+    public int Relay2GpioBcm { get; set; } = 6;
 
-        // Last modified timestamp
-        public DateTime LastModified { get; set; } = DateTime.UtcNow;
-    }
+    public int Relay3GpioBcm { get; set; } = 13;
+
+    public int Relay4GpioBcm { get; set; } = 19;
+
+    public int Relay5GpioBcm { get; set; } = 26;
+
+    public int Relay6GpioBcm { get; set; } = 21;
+
+    public int DaylightOnMinutes { get; set; } = 8 * 60;
+
+    public int DaylightOffMinutes { get; set; } = 20 * 60;
+
+    public int RetentionMonths { get; set; } = 12;
+
+    public int CameraWidth { get; set; } = 1920;
+
+    public int CameraHeight { get; set; } = 1080;
+
+    public int CameraFps { get; set; } = 15;
+
+    public string CameraUrl { get; set; } = "http://localhost:8080";
+
+    public int PollIntervalSeconds { get; set; } = 5;
+
+    public bool UseMockSensors { get; set; } = true;
+
+    public bool UseMockRelays { get; set; } = true;
+
+    public decimal HysteresisC { get; set; } = 1;
+
+    public int HumidityPulseSeconds { get; set; } = 1;
+
+    public int HumidityLockoutHours { get; set; } = 6;
+
+    public static Settings CreateDefault() => new();
 }

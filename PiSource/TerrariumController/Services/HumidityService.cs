@@ -1,89 +1,70 @@
+using Microsoft.EntityFrameworkCore;
 using TerrariumController.Data;
 using TerrariumController.Models;
-using Microsoft.EntityFrameworkCore;
 
-namespace TerrariumController.Services
+namespace TerrariumController.Services;
+
+public sealed class HumidityService : IHumidityService
 {
-    public interface IHumidityService
+    private readonly AppDbContext _dbContext;
+    private readonly IRelayService _relayService;
+
+    public HumidityService(AppDbContext dbContext, IRelayService relayService)
     {
-        Task CheckAndApplyHumidityLockoutAsync(int sensorId, double? humidity);
-        Task<bool> IsHumidityLocked(int sensorId);
+        _dbContext = dbContext;
+        _relayService = relayService;
     }
 
-    public class HumidityService : IHumidityService
+    public async Task EvaluateAsync(Settings settings, LiveSensorState? sensor1, CancellationToken cancellationToken = default)
     {
-        private readonly AppDbContext _context;
-        private readonly IRelayCommandCoordinator _relayCommandCoordinator;
-        private readonly ISettingsService _settingsService;
-        private readonly ILoggingService _loggingService;
-        private readonly ILogger<HumidityService> _logger;
-
-        public HumidityService(AppDbContext context, IRelayCommandCoordinator relayCommandCoordinator,
-            ISettingsService settingsService, ILoggingService loggingService,
-            ILogger<HumidityService> logger)
+        if (sensor1 is null || !sensor1.IsValid || !sensor1.HumidityPercent.HasValue)
         {
-            _context = context;
-            _relayCommandCoordinator = relayCommandCoordinator;
-            _settingsService = settingsService;
-            _loggingService = loggingService;
-            _logger = logger;
+            return;
         }
 
-        public async Task CheckAndApplyHumidityLockoutAsync(int sensorId, double? humidity)
+        var state = await _dbContext.HumidityLockoutStates
+            .SingleOrDefaultAsync(item => item.SensorId == 1, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (state is null)
         {
-            if (sensorId != 1 || humidity == null)
-                return;
-
-            try
-            {
-                var settings = await _settingsService.GetSettingsAsync();
-                var lockoutState = await _context.HumidityLockoutStates
-                    .FirstOrDefaultAsync(hl => hl.SensorId == sensorId);
-
-                if (lockoutState == null)
-                {
-                    lockoutState = new HumidityLockoutState { SensorId = sensorId };
-                    _context.HumidityLockoutStates.Add(lockoutState);
-                }
-
-                // Check if lockout has expired
-                if (lockoutState.IsLocked && DateTime.UtcNow >= lockoutState.LockExpiresAt)
-                {
-                    lockoutState.IsLocked = false;
-                    _logger.LogInformation("Humidity lockout for Sensor {SensorId} expired", sensorId);
-                }
-
-                // Check if we should trigger
-                if (!lockoutState.IsLocked && humidity < settings.Sensor1HumidityThreshold)
-                {
-                    // Trigger Relay 5 for 1 second
-                    await _relayCommandCoordinator.RequestRelayStateAsync(5, true, "Humidity Threshold");
-                    await Task.Delay(1000);
-                    await _relayCommandCoordinator.RequestRelayStateAsync(5, false, "Humidity Pulse Complete");
-
-                    // Apply lockout
-                    lockoutState.LastTriggeredTime = DateTime.UtcNow;
-                    lockoutState.IsLocked = true;
-                    lockoutState.LockExpiresAt = DateTime.UtcNow.AddHours(settings.HumidityLockoutHours);
-
-                    _logger.LogInformation("Humidity threshold triggered for Sensor {SensorId}. Lockout until {LockExpiresAt}",
-                        sensorId, lockoutState.LockExpiresAt);
-                }
-
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking humidity lockout for sensor {SensorId}", sensorId);
-            }
+            state = new HumidityLockoutState { SensorId = 1 };
+            _dbContext.HumidityLockoutStates.Add(state);
         }
 
-        public async Task<bool> IsHumidityLocked(int sensorId)
-        {
-            var lockoutState = await _context.HumidityLockoutStates
-                .FirstOrDefaultAsync(hl => hl.SensorId == sensorId);
+        state.LastHumidityPercent = sensor1.HumidityPercent;
 
-            return lockoutState?.IsLocked ?? false;
+        var now = DateTime.UtcNow;
+        if (state.LockoutUntilUtc.HasValue && state.LockoutUntilUtc.Value > now)
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return;
         }
+
+        if (sensor1.HumidityPercent.Value < settings.Sensor1HumidityThresholdPercent)
+        {
+            state.TriggeredAtUtc = now;
+            state.LockoutUntilUtc = now.AddHours(settings.HumidityLockoutHours);
+            await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            await _relayService.PulseRelayAsync(
+                relayId: 5,
+                duration: TimeSpan.FromSeconds(settings.HumidityPulseSeconds),
+                triggerSource: "humidity-lockout",
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<HumidityLockoutState> GetStateAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await _dbContext.HumidityLockoutStates
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.SensorId == 1, cancellationToken)
+            .ConfigureAwait(false);
+
+        return state ?? new HumidityLockoutState { SensorId = 1 };
     }
 }

@@ -1,18 +1,14 @@
-using System.ComponentModel.DataAnnotations;
+namespace TerrariumController.Models;
 
-namespace TerrariumController.Models
+public sealed class HumidityLockoutState
 {
-    public class HumidityLockoutState
-    {
-        [Key]
-        public int Id { get; set; }
+    public int Id { get; set; }
 
-        public int SensorId { get; set; } = 1; // Only for Sensor 1
+    public int SensorId { get; set; }
 
-        public DateTime LastTriggeredTime { get; set; } = DateTime.MinValue;
+    public DateTime? TriggeredAtUtc { get; set; }
 
-        public bool IsLocked { get; set; } = false;
+    public DateTime? LockoutUntilUtc { get; set; }
 
-        public DateTime LockExpiresAt { get; set; } = DateTime.MinValue;
-    }
+    public decimal? LastHumidityPercent { get; set; }
 }

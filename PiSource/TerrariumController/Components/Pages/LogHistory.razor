@@ -1,0 +1,128 @@
+@page "/logs"
+@inject ILoggingService LoggingService
+
+<section class="panel">
+    <p class="eyebrow">Log History</p>
+    <h2>Relay and sensor events</h2>
+
+    <div class="grid-3">
+        <div class="form-row">
+            <label>Type</label>
+            <select @bind="_entryType">
+                <option value="">All</option>
+                <option value="relay-change">Relay changes</option>
+                <option value="hourly-snapshot">Hourly snapshots</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label>Relay</label>
+            <select @bind="_relayFilter">
+                <option value="0">All</option>
+                <option value="1">Relay 1</option>
+                <option value="2">Relay 2</option>
+                <option value="3">Relay 3</option>
+                <option value="4">Relay 4</option>
+                <option value="5">Relay 5</option>
+                <option value="6">Relay 6</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label>Sensor</label>
+            <select @bind="_sensorFilter">
+                <option value="0">All</option>
+                <option value="1">Sensor 1</option>
+                <option value="2">Sensor 2</option>
+                <option value="3">Sensor 3</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="actions-row">
+        <button class="btn-primary" @onclick="ApplyFilterAsync">Apply</button>
+        <button @onclick="PreviousPageAsync" disabled="@(_page <= 1)">Previous</button>
+        <button @onclick="NextPageAsync" disabled="@((_page * _pageSize) >= _totalCount)">Next</button>
+        <span class="small-muted">Page @_page, total @_totalCount entries</span>
+    </div>
+
+    <div class="log-table-wrap">
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th>Time (UTC)</th>
+                    <th>Type</th>
+                    <th>Relay</th>
+                    <th>Sensor</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in _entries)
+                {
+                    <tr>
+                        <td>@entry.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@entry.EntryType</td>
+                        <td>@(entry.RelayId?.ToString() ?? "-")</td>
+                        <td>@(entry.SensorId?.ToString() ?? "-")</td>
+                        <td>@entry.Details</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    private IReadOnlyList<LogEntry> _entries = Array.Empty<LogEntry>();
+    private string _entryType = string.Empty;
+    private int _relayFilter;
+    private int _sensorFilter;
+    private int _page = 1;
+    private const int _pageSize = 100;
+    private int _totalCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (_page > 1)
+        {
+            _page--;
+            await LoadAsync();
+        }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if ((_page * _pageSize) < _totalCount)
+        {
+            _page++;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await LoggingService.QueryAsync(new LogQuery
+        {
+            EntryType = string.IsNullOrWhiteSpace(_entryType) ? null : _entryType,
+            RelayId = _relayFilter == 0 ? null : _relayFilter,
+            SensorId = _sensorFilter == 0 ? null : _sensorFilter,
+            Page = _page,
+            PageSize = _pageSize
+        });
+
+        _entries = result.Entries;
+        _totalCount = result.TotalCount;
+    }
+}
