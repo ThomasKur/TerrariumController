@@ -35,8 +35,11 @@ jobs:
           cp -R publish/* package/app/
           cp PiSource/install/setup.sh package/
           cp PiSource/install/terrarium.service package/
+          cp PiSource/install/camera.sh package/
+          cp PiSource/install/terrarium-camera.service package/
           cp README.md package/README.md
           chmod +x package/setup.sh
+          chmod +x package/camera.sh
 
       - name: Create zip
         run: |

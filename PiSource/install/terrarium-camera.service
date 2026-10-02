@@ -1,0 +1,18 @@
+[Unit]
+Description=Terrarium Camera Stream
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/terrarium/camera.sh
+Restart=always
+RestartSec=2
+User=pi
+Environment=CAMERA_WIDTH=1920
+Environment=CAMERA_HEIGHT=1080
+Environment=CAMERA_FPS=15
+Environment=CAMERA_PORT=8080
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,129 @@
+name: Build DEB Package
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore PiSource/PiSource.sln
+
+      - name: Build
+        run: dotnet build PiSource/PiSource.sln --configuration Release --no-restore
+
+      - name: Publish self-contained app for Raspberry Pi
+        run: |
+          dotnet publish PiSource/TerrariumController/TerrariumController.csproj \
+            --configuration Release \
+            --runtime linux-arm64 \
+            --self-contained true \
+            -p:PublishSingleFile=false \
+            --output publish-linux-arm64
+
+      - name: Compute package version
+        id: vars
+        run: |
+          VERSION="1.0.${GITHUB_RUN_NUMBER}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "deb_name=terrarium-controller_${VERSION}_arm64.deb" >> "$GITHUB_OUTPUT"
+
+      - name: Build DEB payload
+        env:
+          PACKAGE_VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          PKG_ROOT="debroot"
+          APP_DIR="${PKG_ROOT}/opt/terrarium"
+          CONTROL_DIR="${PKG_ROOT}/DEBIAN"
+          SERVICE_DIR="${PKG_ROOT}/lib/systemd/system"
+
+          rm -rf "${PKG_ROOT}"
+          mkdir -p "${APP_DIR}" "${CONTROL_DIR}" "${SERVICE_DIR}"
+
+          cp -R publish-linux-arm64/. "${APP_DIR}/"
+          cp PiSource/install/camera.sh "${APP_DIR}/camera.sh"
+          chmod 755 "${APP_DIR}/camera.sh"
+
+          sed 's|ExecStart=/usr/bin/dotnet /opt/terrarium/TerrariumController.dll|ExecStart=/opt/terrarium/TerrariumController|' \
+            PiSource/install/terrarium.service > "${SERVICE_DIR}/terrarium.service"
+          cp PiSource/install/terrarium-camera.service "${SERVICE_DIR}/terrarium-camera.service"
+
+          cat > "${CONTROL_DIR}/control" <<EOF
+          Package: terrarium-controller
+          Version: ${PACKAGE_VERSION}
+          Section: misc
+          Priority: optional
+          Architecture: arm64
+          Depends: ffmpeg, rpicam-apps
+          Maintainer: Terrarium Controller
+          Description: Terrarium Controller for Raspberry Pi
+           Blazor-based terrarium automation with relay control, humidity lockout,
+           daylight scheduling, camera stream support, and SQLite logging.
+          EOF
+
+          cat > "${CONTROL_DIR}/postinst" <<'EOF'
+          #!/bin/sh
+          set -e
+
+          chmod 755 /opt/terrarium/camera.sh
+
+          if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+            systemctl enable terrarium.service terrarium-camera.service || true
+            systemctl restart terrarium.service || true
+            systemctl restart terrarium-camera.service || true
+          fi
+
+          exit 0
+          EOF
+
+          cat > "${CONTROL_DIR}/prerm" <<'EOF'
+          #!/bin/sh
+          set -e
+
+          if command -v systemctl >/dev/null 2>&1; then
+            systemctl stop terrarium-camera.service || true
+            systemctl stop terrarium.service || true
+          fi
+
+          exit 0
+          EOF
+
+          cat > "${CONTROL_DIR}/postrm" <<'EOF'
+          #!/bin/sh
+          set -e
+
+          if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+          fi
+
+          exit 0
+          EOF
+
+          chmod 755 "${CONTROL_DIR}/postinst" "${CONTROL_DIR}/prerm" "${CONTROL_DIR}/postrm"
+
+      - name: Create DEB
+        env:
+          DEB_NAME: ${{ steps.vars.outputs.deb_name }}
+        run: |
+          dpkg-deb --build --root-owner-group debroot "${DEB_NAME}"
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrarium-controller-deb
+          path: ${{ steps.vars.outputs.deb_name }}
