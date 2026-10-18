@@ -7,8 +7,8 @@ import dht
 import ujson
 
 
-# DHT22 data pins on Pico (GP16, GP17, GP18)
-sensor_pins = [16, 17, 18]
+# DHT22 data pins on Pico (GP3, GP7, GP8)
+sensor_pins = [3, 7, 8]
 sensors = [dht.DHT22(Pin(pin)) for pin in sensor_pins]
 
 # UART0: TX=GP0, RX=GP1. Connect Pico TX->Pi RX, Pico GND->Pi GND.
