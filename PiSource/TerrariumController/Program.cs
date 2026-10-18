@@ -34,10 +34,10 @@ using (var scope = app.Services.CreateScope())
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
-    app.UseHsts();
+    // This app is intended to run on a LAN-only Raspberry Pi kiosk and does not terminate TLS.
+    // Avoid redirecting to HTTPS, which is not configured in the Pi deployment.
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 

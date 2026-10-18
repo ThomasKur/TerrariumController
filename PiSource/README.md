@@ -70,14 +70,15 @@ The app will create a SQLite database in the current directory: `terrarium.db`
 
 ### Publish for Raspberry Pi
 ```bash
-dotnet publish TerrariumController/TerrariumController.csproj -c Release -o ../publish
+dotnet publish TerrariumController/TerrariumController.csproj -c Release -r linux-arm64 --self-contained true -o ../publish
 ```
-Copy the contents of `publish/` to `/opt/terrarium/` on the Pi.
+This creates a self-contained ARM64 payload with the required .NET runtime bundled, so no shared runtime is required on the Pi. Copy the contents of `publish/` to `/opt/terrarium/`.
 
 ### Build using repo script
 ```powershell
 pwsh -File PiSource/install/build-for-pi.ps1
 ```
+The script defaults to a self-contained ARM64 build for the Pi.
 
 ### Run tests
 ```bash
